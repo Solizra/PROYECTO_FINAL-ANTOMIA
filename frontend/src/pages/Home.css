@@ -1,0 +1,144 @@
+.home-container {
+  display: flex;
+  height: 100vh;
+  background-color: #1a1a1d;
+  color: white;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.sidebar {
+  width: 220px;
+  background-color: #2a2a2e;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.sidebar .logo {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #00f7ff;
+}
+
+.sidebar h2 {
+  font-size: 20px;
+  color: #00f7ff;
+  margin-bottom: 30px;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  width: 100%;
+}
+
+.sidebar li {
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.sidebar li:hover,
+.sidebar li.active {
+  background-color: #00f7ff;
+  color: #000;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.main-title {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #00f7ff;
+  text-align: center;
+}
+
+.trends-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #2a2a2e;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+
+.trends-table th,
+.trends-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #444;
+  text-align: left;
+  font-size: 14px;
+}
+
+.trends-table thead {
+  background-color: #1c1c1e;
+}
+
+.status {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.status.published {
+  background-color: #00ff99;
+  color: #000;
+}
+
+.status.not-published {
+  background-color: #ff4c4c;
+  color: #000;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: #ff4c4c;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 40px;
+}
+
+.footer p {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.input-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #2a2a2e;
+  border-radius: 20px;
+  padding: 8px 12px;
+  width: 400px;
+  margin: 0 auto;
+}
+
+.input-wrapper input {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.input-wrapper button {
+  background: none;
+  border: none;
+  color: #00f7ff;
+  font-size: 20px;
+  cursor: pointer;
+}
