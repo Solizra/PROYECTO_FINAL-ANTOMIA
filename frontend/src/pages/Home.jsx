@@ -1,19 +1,20 @@
 import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import './Home.css';
 
 function Home() {
-  // Estado con las filas (trends)
+  const location = useLocation();
+
   const [trends, setTrends] = useState(
     Array.from({ length: 10 }, (_, i) => ({
       id: i,
-      title: `Trend ${i + 1}`,
+      titulo: `Trend ${i + 1}`,
       publicado: i % 2 === 0,
       newsletter: i % 2 === 0 ? "Sí" : "No",
       source: "www.google.com",
     }))
   );
 
-  // Función para eliminar trend por id
   const handleDelete = (id) => {
     setTrends(trends.filter(trend => trend.id !== id));
   };
@@ -24,8 +25,12 @@ function Home() {
         <h2>AntomIA</h2>
         <nav>
           <ul>
-            <li className="active">Trends</li>
-            <li>Publicaciones</li>
+            <li className={location.pathname === '/Home' ? 'active' : ''}>
+              <Link to="/Home">Trends</Link>
+            </li>
+            <li className={location.pathname === '/publicaciones' ? 'active' : ''}>
+              <Link to="/publicaciones">Publicaciones</Link>
+            </li>
           </ul>
         </nav>
       </aside>
@@ -48,7 +53,7 @@ function Home() {
             {trends.map((trend) => (
               <tr key={trend.id}>
                 <td><input type="checkbox" /></td>
-                <td>{trend.title}</td>
+                <td>{trend.titulo}</td>
                 <td>
                   <span className={trend.publicado ? "status published" : "status not-published"}>
                     {trend.publicado ? "Publicado" : "No publicado"}

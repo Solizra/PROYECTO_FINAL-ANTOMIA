@@ -34,16 +34,34 @@
 }
 
 .sidebar li {
-  padding: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 8px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background 0.2s;
+  transition: background-color 0.3s, color 0.3s;
 }
 
-.sidebar li:hover,
+.sidebar li a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.sidebar li:hover {
+  background-color: #00f7ff;
+  color: #000;
+}
+
 .sidebar li.active {
   background-color: #00f7ff;
   color: #000;
+}
+
+.sidebar li.active a {
+  font-weight: 700;
+  font-size: 18px;
 }
 
 .main-content {
