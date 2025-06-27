@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 import logo from '../components/Logo.png';
 import './LoginForm.css';
 
@@ -7,11 +8,28 @@ function LoginForm() {
   const navigate = useNavigate();
   const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [cargando, setCargando] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Acá despues agregamos validación
-    navigate('/home');
+    setErrorMsg('');
+    setCargando(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: usuario,
+      password: contrasena,
+    });
+
+    setCargando(false);
+
+    if (error) {
+      console.error('Login error:', error);
+      setErrorMsg('Usuario o contraseña incorrectos');
+    } else {
+      console.log('Login exitoso:', data);
+      navigate('/home');
+    }
   };
 
   return (
@@ -19,15 +37,31 @@ function LoginForm() {
       <img src={logo} alt="Logo AntomIA" className="login-logo" />
       <h2 className="title">AntomIA</h2>
       <p className="subtitle">¡Bienvenido a la IA de Antom!</p>
+
       <form onSubmit={handleSubmit}>
-        <label>Usuario</label>
-        <input type="text" value={usuario} onChange={(e) => setUsuario(e.target.value)} required />
-        
+        <label>Usuario (email)</label>
+        <input
+          type="email"
+          value={usuario}
+          onChange={(e) => setUsuario(e.target.value)}
+          required
+          placeholder="ejemplo@email.com"
+        />
+
         <label>Contraseña</label>
-        <input type="password" value={contrasena} onChange={(e) => setContrasena(e.target.value)} required />
-        
+        <input
+          type="password"
+          value={contrasena}
+          onChange={(e) => setContrasena(e.target.value)}
+          required
+        />
+
+        {errorMsg && <p className="error-msg">{errorMsg}</p>}
         <a href="#">¿Olvidaste tu contraseña?</a>
-        <button type="submit">Continuar</button>
+
+        <button type="submit" disabled={cargando}>
+          {cargando ? 'Ingresando...' : 'Continuar'}
+        </button>
       </form>
     </div>
   );
