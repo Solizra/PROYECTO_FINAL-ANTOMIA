@@ -18,12 +18,12 @@
 .sidebar .logo {
   font-size: 24px;
   margin-bottom: 20px;
-  color: #75e9b3;
+  color: #76f6ff;
 }
 
 .sidebar h2 {
   font-size: 20px;
-  color: #75e9b3;
+  color: #76f6ff;
   margin-bottom: 30px;
 }
 
@@ -50,12 +50,12 @@
 }
 
 .sidebar li:hover {
-  background-color: #75e9b3;
+  background-color: #76f6ff;
   color: #000;
 }
 
 .sidebar li.active {
-  background-color: #75e9b3;
+  background-color: #76f6ff;
   color: #000;
 }
 
@@ -73,7 +73,7 @@
 .main-title {
   font-size: 24px;
   margin-bottom: 20px;
-  color: #75e9b3;
+  color: #76f6ff;
   text-align: center;
 }
 
@@ -156,7 +156,26 @@
 .input-wrapper button {
   background: none;
   border: none;
-  color: #00ff99;
+  color: #76f6ff;
   font-size: 20px;
   cursor: pointer;
+}
+
+.logout-btn {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: #76f6ff;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 12px 0;
+  transition: color 0.3s;
+}
+
+.logout-btn:hover {
+  color: #4a9da3;
+  background: none;
 }
