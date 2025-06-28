@@ -39,7 +39,7 @@ function LoginForm() {
       <p className="subtitle">¡Bienvenido a la IA de Antom!</p>
 
       <form onSubmit={handleSubmit}>
-        <label>Usuario (email)</label>
+        <label>Usuario</label>
         <input
           type="email"
           value={usuario}
@@ -54,6 +54,7 @@ function LoginForm() {
           value={contrasena}
           onChange={(e) => setContrasena(e.target.value)}
           required
+          placeholder="******"
         />
 
         {errorMsg && <p className="error-msg">{errorMsg}</p>}
