@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import './Home.css';
+import { supabase } from '../supabaseClient';
+import { LogOut } from 'lucide-react';
 
 function Home() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [trends, setTrends] = useState(
     Array.from({ length: 10 }, (_, i) => ({
@@ -17,6 +20,15 @@ function Home() {
 
   const handleDelete = (id) => {
     setTrends(trends.filter(trend => trend.id !== id));
+  };
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error al cerrar sesión:', error.message);
+    } else {
+      navigate('/');
+    }
   };
 
   return (
@@ -33,6 +45,11 @@ function Home() {
             </li>
           </ul>
         </nav>
+
+        <button className="logout-btn" onClick={handleLogout}>
+          <LogOut size={18} style={{ marginRight: '8px' }} />
+          Cerrar sesión
+        </button>
       </aside>
 
       <main className="main-content">
