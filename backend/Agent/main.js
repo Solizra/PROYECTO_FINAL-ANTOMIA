@@ -28,6 +28,11 @@ Tu tarea es:
 - Determinar si el contenido tiene relación con Climatech.
 - Respondé solo con "Sí" o "No". Si la respuesta es "Sí" genera un breve resmen de la noticia. Si la respuesta es "No" decí cual es el tema principal de la noticia.
 - Si es Climatech, comparo los resumenes de la base de dsatos sobre los newsletetr almacenados. Si las tematicas coinciden con la noticia ingresada, devolves los titulos de los newsletter de la base de datos que se relacionan con la noticia relacionada
+
+IMPORTANTE: siempre que el usuario pegue un link o texto, usá las herramientas disponibles (evaluarNoticiaClimatech y extraerTextoDeNoticia) para procesarlo. No respondas por tu cuenta sin usar una tool.
+⚠️ No respondas directamente si una noticia es o no Climatech. Usá obligatoriamente la herramienta llamada "evaluarNoticiaClimatech" para hacer ese análisis.
+
+
 `.trim();
 
 
@@ -154,29 +159,34 @@ const evaluarNoticiaTool = tool({
     url: z.string().optional().describe("URL de la noticia para buscar newsletters"),
   }),
   execute: async ({ texto }) => {
-    // 1. Evaluar si es Climatech
+    console.log("🔍 evaluarNoticiaTool.execute se llamó");
+
+    // Paso 1: Evaluar si el texto trata sobre Climatech
     const evaluacion = await ollamaLLM.complete({
       prompt: `${systemPrompt}\n\nNoticia:\n${texto}\n\n¿Está relacionada con Climatech?`,
     });
-    
-    console.log("evaluacion completo:", evaluacion);
-    console.log("Tipo de evaluacion:", typeof evaluacion);
-    const esClimatech = evaluacion.trim().toLowerCase().startsWith("sí");  
+
+    console.log("🧠 Evaluación cruda del modelo:", evaluacion);
+
+    const respuesta = evaluacion.trim().toLowerCase();
+    const esClimatech =
+      respuesta.startsWith("sí") ||
+      respuesta.includes("✅ es una noticia sobre climatech") ||
+      respuesta.includes("sí.") ||
+      respuesta.includes("sí,");
+
     if (esClimatech) {
-      // 2. Generar resumen de la noticia
+      // Paso 2: Generar resumen de la noticia
       const resumen = await ollamaLLM.complete({
         prompt: `Leé el siguiente texto de una noticia y escribí un resumen claro en no más de 5 líneas:\n\n${texto}`,
       });
-      
-      
 
+      console.log("📝 Resumen generado:", resumen);
 
-
-      // 3. Buscar newsletters relacionados usando el resumen
-      console.log("Antes de llamar a buscarNewslettersRelacionados, resumen:", resumen);
+      // Paso 3: Buscar newsletters relacionados
+      console.log("📥 Antes de buscar newsletters relacionados");
       const newslettersRelacionados = await buscarNewslettersRelacionados(resumen);
-      console.log("Después de llamar a buscarNewslettersRelacionados");
-
+      console.log("📤 Después de buscar newsletters relacionados");
 
       if (newslettersRelacionados.length > 0) {
         const titulos = newslettersRelacionados.map(nl => `- ${nl.titulo}`).join('\n');
@@ -185,13 +195,16 @@ const evaluarNoticiaTool = tool({
         return `✅ Es una noticia sobre Climatech.\n\n📝 Resumen:\n${resumen}\n\n⚠️ No hay ningún newsletter con su misma temática.`;
       }
     } else {
-      // No es Climatech, no buscar newsletters
-      return `❌ No es una noticia sobre Climatech. Tema principal: ${await ollamaLLM.complete({
-        prompt: `Leé el siguiente texto de una noticia y decí cual es su tema principal:\n\n${texto}`
-      })}`;
+      // Paso 4: Si no es Climatech, indicar el tema principal
+      const temaPrincipal = await ollamaLLM.complete({
+        prompt: `Leé el siguiente texto de una noticia y decí cuál es su tema principal:\n\n${texto}`
+      });
+
+      return `❌ No es una noticia sobre Climatech. Tema principal: ${temaPrincipal}`;
     }
   },
 });
+
 
 
      
@@ -216,5 +229,23 @@ Escribí 'exit' para salir.
 
 
 // Iniciar el chat
-empezarChat(elagente, mensajeBienvenida);
+//empezarChat(elagente, mensajeBienvenida);
+
+// -------------------
+// TEST: Ejecutar búsqueda de newsletters manualmente
+// -------------------
+
+(async () => {
+  const resumenDePrueba = `
+    El podcast examina el agua como desafío climático y recurso estratégico, destacando su importancia en el contexto internacional, los impactos del cambio climático, y su rol en la transición energética.
+    Se mencionan temas como la gestión hídrica, el acceso a servicios hídricos y la política internacional.
+  `;
+
+  console.log("🧪 Ejecutando test con resumen de prueba:");
+  const relacionados = await buscarNewslettersRelacionados(resumenDePrueba);
+
+  console.log("✅ Resultado de buscarNewslettersRelacionados:");
+  console.dir(relacionados, { depth: null });
+})();
+
 
