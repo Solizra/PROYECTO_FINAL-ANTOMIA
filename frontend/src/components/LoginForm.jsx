@@ -28,6 +28,9 @@ function LoginForm() {
       setErrorMsg('Usuario o contraseña incorrectos');
     } else {
       console.log('Login exitoso:', data);
+
+      localStorage.setItem('user', JSON.stringify(data.user));
+    
       navigate('/home');
     }
   };

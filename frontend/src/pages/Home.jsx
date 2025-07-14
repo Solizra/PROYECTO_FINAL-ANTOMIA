@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import './Home.css';
 import { supabase } from '../supabaseClient';
@@ -18,6 +18,13 @@ function Home() {
     }))
   );
 
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user) {
+      navigate('/'); // si no hay sesión, redirige a login
+    }
+  }, []);
+
   const handleDelete = (id) => {
     setTrends(trends.filter(trend => trend.id !== id));
   };
@@ -27,6 +34,7 @@ function Home() {
     if (error) {
       console.error('Error al cerrar sesión:', error.message);
     } else {
+      localStorage.removeItem('user'); // limpia el storage
       navigate('/');
     }
   };
