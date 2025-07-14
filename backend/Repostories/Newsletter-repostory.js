@@ -11,8 +11,8 @@ export default class NewsletterRepository {
     try {
       await client.connect();
       let sql = `
-        SELECT id, link, resumen, titulo, fecha_creacion
-        FROM newsletter
+        SELECT id, link, "Resumen", titulo
+        FROM "Newsletter"
         WHERE 1=1
       `;
       const params = [];
@@ -34,8 +34,8 @@ export default class NewsletterRepository {
         params.push(`%${titulo}%`);
       }
 
-      sql += ` ORDER BY fecha_creacion DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      params.push(limit, offset);
+     // sql += ` ORDER BY fecha_creacion DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      //params.push(limit, offset); AGREGAR A LA BD
 
       const result = await client.query(sql, params);
       newsletters = result.rows;

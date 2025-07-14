@@ -10,8 +10,8 @@ app.use(express.json());
 
 
 // Definición de rutas principales (cada una con su controlador y servicio detrás)
-app.use('/api/Newsletter', NewsletterRouter);
+app.use('/api/Newsletter', NewsletterRouter); // http://localhost:3000/api/Newsletter
 
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.log(`Server listening on port ${process.env.DB_PORT}`);
   });

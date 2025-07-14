@@ -2,6 +2,8 @@ import { tool, agent } from "llamaindex";
 import { Ollama } from "@llamaindex/ollama";
 import { z } from "zod";
 import { empezarChat } from './cli-chat.js'
+import https from 'https';
+
 //import {Bdd} from '../../data/Bdd.js'
 //revisar la conexion con base de datos y porque no aparece la respuesta de que si hay algun newsletter relacionado  
 
@@ -18,7 +20,7 @@ const DEBUG = false;
 // System prompt básico
 const systemPrompt = `
 Sos un asistente que analiza noticias para detectar si están relacionadas con Climatech.
-Climatech incluye tecnologías que ayudan a combatir el cambio climático, como energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, etc.
+Climatech incluye tecnologías que ayudan a combatir el cambio climático, como energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, etc. Pero también son relevantes noticias sobre estos temas sin tecnologías incluidas.
 
 
 Tu tarea es:
@@ -42,49 +44,59 @@ const ollamaLLM = new Ollama({
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-/*async function buscarNewslettersRelacionados(resumenNoticia) {
-  const bdd = new Bdd();
-  const Newsletters = await bdd.getNewsletters();
 
-// ver si así esta bien lalamada la función
+async function buscarNewslettersRelacionados(resumenNoticia) {
+  console.log("Buscando newsletters relacionados para resumen:", resumenNoticia);
+  // 1. Traer los newsletters desde tu backend Express
+  const response = await fetch('http://localhost:3000/api/Newsletter');
+  const newsletters = await response.json();
 
-    const prompt = `
-      Tengo un resumen de una noticia sobre Climatech:
-      "${resumenNoticia}"
+  // 2. Armar el prompt para el modelo LLM
+  const prompt = `
+Tengo un resumen de una noticia sobre Climatech:
+"${resumenNoticia}"
 
-      Y una lista de newsletters con su título y resumen:
-      ${Newsletters.map(n => `- Título: "${n.titulo}", Resumen: ${n.resumen}`).join('\n')}
+Y una lista de newsletters con su título y resumen:
+${newsletters.map(n => `- Título: "${n.titulo}", Resumen: ${n.resumen}`).join('\n')}
 
-      Compará el resumen de la noticia con los resúmenes de los newsletters.
-      Si alguno trata una temática similar, respondé solo con una lista de los **títulos exactos** de los newsletters relacionados, uno por línea.
-      No agregues explicaciones, solo los títulos.
-    `;
+Compará el resumen de la noticia con los resúmenes de los newsletters.
+Si alguno trata una temática similar, respondé solo con una lista de los **títulos exactos** de los newsletters relacionados, uno por línea.
+No agregues explicaciones, solo los títulos.
+`;
 
-      const respuesta = await ollamaLLM.complete({
-        prompt,
-        temperature: 0,
+  // 3. Consultar al modelo
+  const respuesta = await ollamaLLM.complete({
+    prompt,
+    temperature: 0,
+  });
+
+  // 4. Procesar respuesta del modelo
+  const relacionados = [];
+
+  const lineas = respuesta
+    .split('\n')
+    .map(linea => linea.trim())
+    .filter(Boolean);
+
+  lineas.forEach(tituloRespuesta => {
+    const newsletter = newsletters.find(n =>
+      n.titulo.toLowerCase() === tituloRespuesta.toLowerCase()
+    );
+    if (newsletter) {
+      relacionados.push({
+        id: newsletter.id,
+        link: newsletter.link,
+        titulo: newsletter.titulo,
+        resumen: newsletter.resumen,
       });
-
-      const relacionados = [];
-
-      const lineas = respuesta.split('\n').map(linea => linea.trim()).filter(Boolean);
-
-      lineas.forEach(tituloRespuesta => {
-        const newsletter = Newsletters.find(n => n.titulo.toLowerCase() === tituloRespuesta.toLowerCase());
-        if (newsletter) {
-          relacionados.push({
-            id: newsletter.id,
-            link: newsletter.link,
-            titulo: newsletter.titulo,
-            resumen: newsletter.resumen,
-          });
-        }
-      });
+    }
+  });
 
   return relacionados;
 }
-*/
+
 
 const extraerTextoDeNoticiaTool = tool({
   name: "extraerTextoDeNoticia",
@@ -94,7 +106,7 @@ const extraerTextoDeNoticiaTool = tool({
   }),
   execute: async ({ url }) => {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { agent: httpsAgent });
       if (!res.ok) throw new Error(`Error al descargar la página: ${res.statusText}`);
 
       const html = await res.text();
@@ -107,7 +119,7 @@ const extraerTextoDeNoticiaTool = tool({
       const parrafos = $('p')
         .map((_, el) => $(el).text().trim())
         .get()
-        .filter(texto => texto.length > 30); // Filtrar basura
+        .filter(texto => texto.length > 30);
 
       if (parrafos.length === 0) throw new Error('No se pudo extraer texto útil');
 
@@ -121,7 +133,6 @@ const extraerTextoDeNoticiaTool = tool({
     } catch (e) {
       console.error('Error en extraerTextoDeNoticiaTool:', e.message);
 
-      // Fallback en caso de error: devolver título simple y link
       return {
         titulo: 'No se pudo extraer el título',
         texto: 'No se pudo extraer el contenido de la noticia.',
@@ -130,6 +141,7 @@ const extraerTextoDeNoticiaTool = tool({
     }
   },
 });
+
 
 
 
@@ -146,18 +158,24 @@ const evaluarNoticiaTool = tool({
     const evaluacion = await ollamaLLM.complete({
       prompt: `${systemPrompt}\n\nNoticia:\n${texto}\n\n¿Está relacionada con Climatech?`,
     });
-    const esClimatech = eval
-    evaluacion.trim().toLowerCase().startsWith("sí");
+    
+    console.log("evaluacion completo:", evaluacion);
+    console.log("Tipo de evaluacion:", typeof evaluacion);
+    const esClimatech = evaluacion.trim().toLowerCase().startsWith("sí");  
     if (esClimatech) {
       // 2. Generar resumen de la noticia
       const resumen = await ollamaLLM.complete({
         prompt: `Leé el siguiente texto de una noticia y escribí un resumen claro en no más de 5 líneas:\n\n${texto}`,
       });
+      
+      
+
 
 
       // 3. Buscar newsletters relacionados usando el resumen
-      
+      console.log("Antes de llamar a buscarNewslettersRelacionados, resumen:", resumen);
       const newslettersRelacionados = await buscarNewslettersRelacionados(resumen);
+      console.log("Después de llamar a buscarNewslettersRelacionados");
 
 
       if (newslettersRelacionados.length > 0) {
