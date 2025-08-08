@@ -29,8 +29,8 @@ Tu tarea es:
 - Respondé solo con "Sí" o "No". Si la respuesta es "Sí" genera un breve resmen de la noticia. Si la respuesta es "No" decí cual es el tema principal de la noticia.
 - Si es Climatech, comparo los resumenes de la base de dsatos sobre los newsletetr almacenados. Si las tematicas coinciden con la noticia ingresada, devolves los titulos de los newsletter de la base de datos que se relacionan con la noticia relacionada
 
-IMPORTANTE: siempre que el usuario pegue un link o texto, usá las herramientas disponibles (evaluarNoticiaClimatech y extraerTextoDeNoticia) para procesarlo. No respondas por tu cuenta sin usar una tool.
-⚠️ No respondas directamente si una noticia es o no Climatech. Usá obligatoriamente la herramienta llamada "evaluarNoticiaClimatech" para hacer ese análisis.
+IMPORTANTE: Para determinar si una noticia está relacionada con Climatech, el asistente cuenta con herramientas como evaluarNoticiaClimatech y extraerTextoDeNoticia. Estas herramientas están diseñadas para realizar análisis automáticos, por lo que el asistente debe usarlas siempre que sea necesario, en lugar de emitir juicios directamente.
+
 
 
 `.trim();
@@ -39,7 +39,7 @@ IMPORTANTE: siempre que el usuario pegue un link o texto, usá las herramientas 
 const ollamaLLM = new Ollama({
   model: "qwen3:1.7b",
   temperature: 0.75,
-    timeout: 2 * 60 * 1000, // Timeout de 2 minutos
+    timeout: 4 * 60 * 1000, // Timeout de 2 minutos
 });
 
 
@@ -70,32 +70,71 @@ Compará el resumen de la noticia con los resúmenes de los newsletters.
 Si alguno trata una temática similar, respondé solo con una lista de los **títulos exactos** de los newsletters relacionados, uno por línea.
 No agregues explicaciones, solo los títulos.
 `;
+console.log("Los newsletters que voy a comparar son:");
+console.log(JSON.stringify(newsletters, null, 2));
+
 
   // 3. Consultar al modelo
-  const respuesta = await ollamaLLM.complete({
-    prompt,
-    temperature: 0,
-  });
+    // 3. Consultar al modelo
+    const completion = await ollamaLLM.complete({
+      prompt,
+      temperature: 0,
+    });
+    console.log("DEBUG completion:", completion);
+  
+    // AJUSTA AQUÍ según lo que veas en el log
+    let respuesta = "";
+    if (typeof completion === "string") {
+      respuesta = completion;
+    } else if (completion.completion) {
+      respuesta = completion.completion;
+    } else if (completion.text) {
+      respuesta = completion.text;
+    } else if (completion.output) {
+      respuesta = completion.output;
+    } else {
+      respuesta = "";
+    }
+  
+    console.log("🧠 Texto generado por el modelo:\n", respuesta);
+  
+  
 
   // 4. Procesar respuesta del modelo
+  function normalizarTitulo(titulo) {
+    return titulo
+      .toLowerCase()
+      .replace(/…/g, "") // elimina puntos suspensivos unicode
+      .replace(/\.\.\./g, "") // elimina tres puntos
+      .replace(/[#¿?!"¡]/g, "") // elimina signos raros
+      .replace(/\s+/g, " ") // colapsa espacios
+      .trim();
+  }
+  
   const relacionados = [];
-
+  const idsAgregados = new Set();
+  
   const lineas = respuesta
     .split('\n')
     .map(linea => linea.trim())
     .filter(Boolean);
-
+  
   lineas.forEach(tituloRespuesta => {
+    const tituloNorm = normalizarTitulo(tituloRespuesta);
+  
     const newsletter = newsletters.find(n =>
-      n.titulo.toLowerCase() === tituloRespuesta.toLowerCase()
+      normalizarTitulo(n.titulo) === tituloNorm ||
+      normalizarTitulo(n.titulo).includes(tituloNorm) ||
+      tituloNorm.includes(normalizarTitulo(n.titulo))
     );
-    if (newsletter) {
+    if (newsletter && !idsAgregados.has(newsletter.id)) {
       relacionados.push({
         id: newsletter.id,
         link: newsletter.link,
         titulo: newsletter.titulo,
-        resumen: newsletter.resumen,
+        resumen: newsletter.Resumen, 
       });
+      idsAgregados.add(newsletter.id);
     }
   });
 
@@ -118,7 +157,8 @@ const extraerTextoDeNoticiaTool = tool({
       const $ = cheerio.load(html);
 
       // Título de la noticia
-      const titulo = $('title').text().trim() || 'Sin título';
+     // const titulo = $('title').text().trim() || 'Sin título';
+     const titulo = "Sin titulo"
 
       // Extraer párrafos significativos
       const parrafos = $('p')
@@ -128,8 +168,10 @@ const extraerTextoDeNoticiaTool = tool({
 
       if (parrafos.length === 0) throw new Error('No se pudo extraer texto útil');
 
-      const texto = parrafos.join('\n').slice(0, 3000);
-
+      //const texto = parrafos.join('\n').slice(0, 3000);
+      const texto = `
+      El artículo “IA: villana ambiental o el arma secreta” expone la paradoja de la inteligencia artificial como fuente de alto impacto ambiental —por su consumo energético, uso de agua, generación de residuos y demanda de minerales críticos— y, a la vez, como herramienta clave para enfrentar el cambio climático, destacando su uso en monitoreo ambiental, eficiencia energética y respuesta ante catástrofes, y proponiendo regulaciones para reducir su huella ecológica.
+`
       return {
         titulo,
         texto,
@@ -146,9 +188,6 @@ const extraerTextoDeNoticiaTool = tool({
     }
   },
 });
-
-
-
 
 
 const evaluarNoticiaTool = tool({
@@ -229,23 +268,33 @@ Escribí 'exit' para salir.
 
 
 // Iniciar el chat
-//empezarChat(elagente, mensajeBienvenida);
+empezarChat(elagente, mensajeBienvenida);
 
 // -------------------
 // TEST: Ejecutar búsqueda de newsletters manualmente
 // -------------------
 
-(async () => {
+{/*(async () => {
   const resumenDePrueba = `
-    El podcast examina el agua como desafío climático y recurso estratégico, destacando su importancia en el contexto internacional, los impactos del cambio climático, y su rol en la transición energética.
-    Se mencionan temas como la gestión hídrica, el acceso a servicios hídricos y la política internacional.
+  El ministro de Desregulación, Federico Sturzenegger, criticó duramente a los diputados que votaron contra el Gobierno en la Cámara baja, acusándolos de fomentar la corrupción al oponerse a la eliminación de organismos públicos como Vialidad, que, según él, es un foco histórico de irregularidades. Apuntó especialmente contra la Coalición Cívica, aliada del kirchnerismo en esta votación, y cuestionó su postura como incoherente con su lucha contra la corrupción. Afirmó que el presidente Milei busca desmantelar estructuras estatales diseñadas para el robo de fondos públicos, mientras que los legisladores opositores actúan para conservar esos “curros”.
+
   `;
 
-  console.log("🧪 Ejecutando test con resumen de prueba:");
-  const relacionados = await buscarNewslettersRelacionados(resumenDePrueba);
+  const respuesta = await evaluarNoticiaTool.execute({ texto: resumenDePrueba });
+  console.log("Respuesta:", respuesta);
+  if (respuesta) {
+    console.log("🧪 Ejecutando test con resumen de prueba:");
+    const relacionados = await buscarNewslettersRelacionados(resumenDePrueba);
+  
+    console.log("✅ Resultado de buscarNewslettersRelacionados:");
+    console.dir(relacionados, { depth: null });
+  }
+  else{
+    console.log("la noticia no es climatech")
+  }
 
-  console.log("✅ Resultado de buscarNewslettersRelacionados:");
-  console.dir(relacionados, { depth: null });
-})();
+})();*/}
+
+//quizas comparar por palbras claves y no solo por resuemen paera que sea mas especifico. 
 
 
