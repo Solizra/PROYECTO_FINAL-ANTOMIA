@@ -1,38 +1,38 @@
 {
-  "name": "mi-proyecto",
-  "private": true,
-  "version": "0.0.0",
+  "name": "climatech-news-analyzer",
+  "version": "1.0.0",
+  "description": "Agente inteligente para analizar noticias sobre Climatech",
   "type": "module",
+  "main": "main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "start": "node src/backend/agente/main.js"
+    "start": "node main.js",
+    "start-no-ollama": "node main-no-ollama.js",
+    "test": "node test-agent.js",
+    "test-no-ollama": "node test-no-ollama.js",
+    "test-no-llm": "node test-no-llm.js",
+    "dev": "node main.js",
+    "dev-no-ollama": "node main-no-ollama.js",
+    "setup": "node setup.js",
+    "install-deps": "node install.js",
+    "check-ollama": "node check-ollama.js"
   },
   "dependencies": {
-    "@llamaindex/ollama": "^0.1.20",
-    "@supabase/supabase-js": "^2.50.3",
     "cheerio": "^1.1.2",
     "dotenv": "^17.1.0",
-    "fetch": "^1.1.0",
-    "llamaindex": "^0.10.6",
     "node-fetch": "^3.3.2",
-    "pg": "^8.16.3",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.2",
-    "string-similarity": "^4.0.4"
+    "pg": "^8.16.3"
   },
-  "devDependencies": {
-    "@eslint/js": "^9.29.0",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.5.2",
-    "eslint": "^9.29.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
-    "globals": "^16.2.0",
-    "vite": "^5.2.10"
+  "keywords": [
+    "climatech",
+    "news",
+    "analyzer",
+    "ai",
+    "llm",
+    "ollama"
+  ],
+  "author": "Climatech Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -3,252 +3,374 @@ import { Ollama } from "@llamaindex/ollama";
 import { z } from "zod";
 import { empezarChat } from './cli-chat.js'
 import https from 'https';
-
-//import {Bdd} from '../../data/Bdd.js'
-//revisar la conexion con base de datos y porque no aparece la respuesta de que si hay algun newsletter relacionado  
-
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
 
 // Configuración
 const DEBUG = false;
 
-
-// Instancia de la clase Estudiantes
-//const estudiantes = new Estudiantes();
-//estudiantes.cargarEstudiantesDesdeJson();
-
-
-// System prompt básico
-const systemPrompt = `
-Sos un asistente que analiza noticias para detectar si están relacionadas con Climatech.
-Climatech incluye tecnologías que ayudan a combatir el cambio climático, como energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, etc. Pero también son relevantes noticias sobre estos temas sin tecnologías incluidas.
-
-
-Tu tarea es:
-- Leer la noticia que se encuentra en el texto o el link proporcionado.
-- Determinar si el contenido tiene relación con Climatech.
-- Respondé solo con "Sí" o "No". Si la respuesta es "Sí" genera un breve resmen de la noticia. Si la respuesta es "No" decí cual es el tema principal de la noticia.
-- Si es Climatech, comparo los resumenes de la base de dsatos sobre los newsletetr almacenados. Si las tematicas coinciden con la noticia ingresada, devolves los titulos de los newsletter de la base de datos que se relacionan con la noticia relacionada
-
-IMPORTANTE: Para determinar si una noticia está relacionada con Climatech, el asistente cuenta con herramientas como evaluarNoticiaClimatech y extraerTextoDeNoticia. Estas herramientas están diseñadas para realizar análisis automáticos, por lo que el asistente debe usarlas siempre que sea necesario, en lugar de emitir juicios directamente.
-
-
-
-`.trim();
-
-
+// Configuración del LLM con timeout extendido y reintentos
 const ollamaLLM = new Ollama({
   model: "qwen3:1.7b",
-  temperature: 0.75,
-    timeout: 4 * 60 * 1000, // Timeout de 2 minutos
+  temperature: 0.3,
+  timeout: 8 * 60 * 1000, // 8 minutos para evitar timeouts
 });
-
-
-
-
-// TODO: Implementar la Tool para buscar por nombre
-import fetch from 'node-fetch';
-import * as cheerio from 'cheerio';
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
+// System prompt mejorado
+const systemPrompt = `
+Eres un asistente especializado en análisis de noticias sobre Climatech (tecnologías climáticas).
+Tu función es analizar noticias y determinar si están relacionadas con Climatech, que incluye:
+- Energías renovables (solar, eólica, hidroeléctrica, etc.)
+- Eficiencia energética
+- Captura y almacenamiento de carbono
+- Movilidad sostenible (vehículos eléctricos, transporte público)
+- Agricultura sostenible
+- Tecnologías de monitoreo ambiental
+- Políticas climáticas y regulaciones ambientales
+- Innovación en materiales sostenibles
+- Economía circular
 
-async function buscarNewslettersRelacionados(resumenNoticia) {
-  console.log("Buscando newsletters relacionados para resumen:", resumenNoticia);
-  // 1. Traer los newsletters desde tu backend Express
-  const response = await fetch('http://localhost:3000/api/Newsletter');
-  const newsletters = await response.json();
+Responde de manera clara y estructurada siguiendo el formato especificado.
+`.trim();
 
-  // 2. Armar el prompt para el modelo LLM
-  const prompt = `
-Tengo un resumen de una noticia sobre Climatech:
-"${resumenNoticia}"
-
-Y una lista de newsletters con su título y resumen:
-${newsletters.map(n => `- Título: "${n.titulo}", Resumen: ${n.resumen}`).join('\n')}
-
-Compará el resumen de la noticia con los resúmenes de los newsletters.
-Si alguno trata una temática similar, respondé solo con una lista de los **títulos exactos** de los newsletters relacionados, uno por línea.
-No agregues explicaciones, solo los títulos.
-`;
-console.log("Los newsletters que voy a comparar son:");
-console.log(JSON.stringify(newsletters, null, 2));
-
-
-  // 3. Consultar al modelo
-    // 3. Consultar al modelo
-    const completion = await ollamaLLM.complete({
-      prompt,
-      temperature: 0,
-    });
-    console.log("DEBUG completion:", completion);
-  
-    // AJUSTA AQUÍ según lo que veas en el log
-    let respuesta = "";
-    if (typeof completion === "string") {
-      respuesta = completion;
-    } else if (completion.completion) {
-      respuesta = completion.completion;
-    } else if (completion.text) {
-      respuesta = completion.text;
-    } else if (completion.output) {
-      respuesta = completion.output;
-    } else {
-      respuesta = "";
-    }
-  
-    console.log("🧠 Texto generado por el modelo:\n", respuesta);
-  
-  
-
-  // 4. Procesar respuesta del modelo
-  function normalizarTitulo(titulo) {
-    return titulo
-      .toLowerCase()
-      .replace(/…/g, "") // elimina puntos suspensivos unicode
-      .replace(/\.\.\./g, "") // elimina tres puntos
-      .replace(/[#¿?!"¡]/g, "") // elimina signos raros
-      .replace(/\s+/g, " ") // colapsa espacios
-      .trim();
+// Función auxiliar para procesar respuestas del LLM
+function procesarRespuestaLLM(respuesta) {
+  if (typeof respuesta === 'string') {
+    return respuesta.trim();
+  } else if (respuesta && typeof respuesta === 'object') {
+    // Intentar diferentes propiedades comunes
+    if (respuesta.text) return respuesta.text.trim();
+    if (respuesta.content) return respuesta.content.trim();
+    if (respuesta.response) return respuesta.response.trim();
+    if (respuesta.message) return respuesta.message.trim();
+    if (respuesta.completion) return respuesta.completion.trim();
+    if (respuesta.output) return respuesta.output.trim();
+    if (respuesta.result) return respuesta.result.trim();
+    // Si es un objeto con propiedades, intentar convertirlo a string
+    return JSON.stringify(respuesta).trim();
+  } else {
+    return String(respuesta || '').trim();
   }
-  
-  const relacionados = [];
-  const idsAgregados = new Set();
-  
-  const lineas = respuesta
-    .split('\n')
-    .map(linea => linea.trim())
-    .filter(Boolean);
-  
-  lineas.forEach(tituloRespuesta => {
-    const tituloNorm = normalizarTitulo(tituloRespuesta);
-  
-    const newsletter = newsletters.find(n =>
-      normalizarTitulo(n.titulo) === tituloNorm ||
-      normalizarTitulo(n.titulo).includes(tituloNorm) ||
-      tituloNorm.includes(normalizarTitulo(n.titulo))
-    );
-    if (newsletter && !idsAgregados.has(newsletter.id)) {
-      relacionados.push({
-        id: newsletter.id,
-        link: newsletter.link,
-        titulo: newsletter.titulo,
-        resumen: newsletter.Resumen, 
-      });
-      idsAgregados.add(newsletter.id);
-    }
-  });
-
-  return relacionados;
 }
 
+// Función para llamar al LLM con reintentos
+async function llamarLLMConReintentos(prompt, temperature = 0.2, maxReintentos = 3) {
+  for (let intento = 1; intento <= maxReintentos; intento++) {
+    try {
+      console.log(`🧠 Intento ${intento}/${maxReintentos} - Llamando al LLM...`);
+      
+      const respuesta = await ollamaLLM.complete({
+        prompt: prompt,
+        temperature: temperature,
+      });
+      
+      console.log(`✅ LLM respondió exitosamente en intento ${intento}`);
+      return respuesta;
+    } catch (error) {
+      console.error(`❌ Error en intento ${intento}: ${error.message}`);
+      
+      if (intento === maxReintentos) {
+        throw new Error(`Falló después de ${maxReintentos} intentos: ${error.message}`);
+      }
+      
+      // Esperar antes del siguiente intento
+      const tiempoEspera = intento * 2000; // 2s, 4s, 6s
+      console.log(`⏳ Esperando ${tiempoEspera/1000}s antes del siguiente intento...`);
+      await new Promise(resolve => setTimeout(resolve, tiempoEspera));
+    }
+  }
+}
 
+// Función para extraer contenido de noticias desde URLs
+async function extraerContenidoNoticia(url) {
+  try {
+    console.log(`🔗 Extrayendo contenido de: ${url}`);
+    
+    const res = await fetch(url, { agent: httpsAgent });
+    if (!res.ok) throw new Error(`Error HTTP: ${res.status} ${res.statusText}`);
+
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    // Extraer título
+    let titulo = $('title').text().trim() || 
+                 $('h1').first().text().trim() || 
+                 $('meta[property="og:title"]').attr('content') || 
+                 'Sin título';
+
+    // Extraer contenido principal
+    const parrafos = $('p, article, .content, .article-content, .post-content')
+      .map((_, el) => $(el).text().trim())
+      .get()
+      .filter(texto => texto.length > 20 && !texto.includes('cookie') && !texto.includes('privacy'));
+
+    if (parrafos.length === 0) {
+      throw new Error('No se pudo extraer contenido útil de la página');
+    }
+
+    const contenido = parrafos.join('\n').slice(0, 3000);
+    
+    console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
+    
+    return {
+      titulo: titulo,
+      contenido: contenido,
+      url: url
+    };
+  } catch (error) {
+    console.error(`❌ Error extrayendo contenido: ${error.message}`);
+    return {
+      titulo: 'Error al extraer título',
+      contenido: 'No se pudo extraer el contenido de la noticia.',
+      url: url
+    };
+  }
+}
+
+// Función para generar resumen de la noticia
+async function generarResumen(contenido) {
+  try {
+    console.log(`📝 Generando resumen...`);
+    
+    const prompt = `
+Analiza el siguiente contenido de una noticia y genera un resumen claro y conciso en máximo 3 líneas:
+
+${contenido}
+
+Resumen:`;
+
+    const respuesta = await llamarLLMConReintentos(prompt, 0.2);
+    const resumen = procesarRespuestaLLM(respuesta);
+    console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
+    
+    return resumen;
+  } catch (error) {
+    console.error(`❌ Error generando resumen: ${error.message}`);
+    return 'No se pudo generar el resumen debido a un timeout.';
+  }
+}
+
+// Función para determinar si es Climatech
+async function determinarSiEsClimatech(contenido) {
+  try {
+    console.log(`🔍 Evaluando si es Climatech...`);
+    
+    const prompt = `
+Analiza el siguiente contenido de una noticia y determina si está relacionada con Climatech (tecnologías climáticas).
+
+Climatech incluye:
+- Energías renovables (solar, eólica, hidroeléctrica, etc.)
+- Eficiencia energética
+- Captura y almacenamiento de carbono
+- Movilidad sostenible (vehículos eléctricos, transporte público)
+- Agricultura sostenible
+- Tecnologías de monitoreo ambiental
+- Políticas climáticas y regulaciones ambientales
+- Innovación en materiales sostenibles
+- Economía circular
+
+Contenido de la noticia:
+${contenido}
+
+Responde únicamente con "SÍ" si está relacionada con Climatech, o "NO" si no lo está.`;
+
+    const respuesta = await llamarLLMConReintentos(prompt, 0.1);
+    const respuestaProcesada = procesarRespuestaLLM(respuesta);
+    const esClimatech = respuestaProcesada.toLowerCase().includes('sí') || 
+                       respuestaProcesada.toLowerCase().includes('si') ||
+                       respuestaProcesada.toLowerCase().includes('yes');
+    
+    console.log(`✅ Evaluación: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
+    console.log(`🧠 Respuesta del modelo: "${respuestaProcesada}"`);
+    
+    return esClimatech;
+  } catch (error) {
+    console.error(`❌ Error evaluando Climatech: ${error.message}`);
+    // En caso de error, asumir que no es Climatech para evitar falsos positivos
+    return false;
+  }
+}
+
+// Función para obtener newsletters de la base de datos
+async function obtenerNewslettersBDD() {
+  try {
+    console.log(`📥 Obteniendo newsletters de la base de datos...`);
+    
+    const response = await fetch('http://localhost:3000/api/Newsletter');
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+    }
+    
+    const newsletters = await response.json();
+    console.log(`✅ Se obtuvieron ${newsletters.length} newsletters de la BDD`);
+    
+    return newsletters;
+  } catch (error) {
+    console.error(`❌ Error obteniendo newsletters: ${error.message}`);
+    return [];
+  }
+}
+
+// Función para comparar noticia con newsletters
+async function compararConNewsletters(resumenNoticia, newsletters) {
+  try {
+    console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters...`);
+    
+    if (newsletters.length === 0) {
+      console.log(`⚠️ No hay newsletters en la base de datos para comparar`);
+      return [];
+    }
+
+    const prompt = `
+Compara el siguiente resumen de una noticia sobre Climatech con los newsletters de la base de datos.
+
+RESUMEN DE LA NOTICIA:
+${resumenNoticia}
+
+NEWSLETTERS DISPONIBLES:
+${newsletters.map((nl, index) => `${index + 1}. Título: "${nl.titulo}"
+   Resumen: ${nl.Resumen || 'Sin resumen'}`).join('\n\n')}
+
+INSTRUCCIONES:
+- Analiza si algún newsletter trata temas similares a la noticia
+- Considera palabras clave, conceptos y temáticas relacionadas
+- Responde ÚNICAMENTE con los números de los newsletters relacionados, separados por comas
+- Si no hay coincidencias, responde "NINGUNO"
+
+Ejemplo de respuesta: "1, 3, 5" o "NINGUNO"
+
+Newsletters relacionados:`;
+
+    const respuesta = await llamarLLMConReintentos(prompt, 0.1);
+    const respuestaProcesada = procesarRespuestaLLM(respuesta);
+    console.log(`🧠 Respuesta del modelo: ${respuestaProcesada}`);
+
+    // Procesar respuesta
+    if (respuestaProcesada.toLowerCase().includes('ninguno') || respuestaProcesada === '') {
+      console.log(`✅ No se encontraron newsletters relacionados`);
+      return [];
+    }
+
+    // Extraer números de newsletters relacionados
+    const numeros = respuestaProcesada
+      .split(/[,\s]+/)
+      .map(num => parseInt(num.trim()))
+      .filter(num => !isNaN(num) && num > 0 && num <= newsletters.length);
+
+    const newslettersRelacionados = numeros.map(num => newsletters[num - 1]);
+    
+    console.log(`✅ Se encontraron ${newslettersRelacionados.length} newsletters relacionados`);
+    
+    return newslettersRelacionados;
+  } catch (error) {
+    console.error(`❌ Error comparando newsletters: ${error.message}`);
+    return [];
+  }
+}
+
+// Tool para extraer texto de noticia
 const extraerTextoDeNoticiaTool = tool({
   name: "extraerTextoDeNoticia",
-  description: "Extrae el contenido principal de una noticia desde un link, incluyendo el título y el texto (máximo 3000 caracteres).",
+  description: "Extrae el contenido principal de una noticia desde un link, incluyendo el título y el texto.",
   parameters: z.object({
     url: z.string().describe("El link de la noticia"),
   }),
   execute: async ({ url }) => {
-    try {
-      const res = await fetch(url, { agent: httpsAgent });
-      if (!res.ok) throw new Error(`Error al descargar la página: ${res.statusText}`);
-
-      const html = await res.text();
-      const $ = cheerio.load(html);
-
-      // Título de la noticia
-     // const titulo = $('title').text().trim() || 'Sin título';
-     const titulo = "Sin titulo"
-
-      // Extraer párrafos significativos
-      const parrafos = $('p')
-        .map((_, el) => $(el).text().trim())
-        .get()
-        .filter(texto => texto.length > 30);
-
-      if (parrafos.length === 0) throw new Error('No se pudo extraer texto útil');
-
-      //const texto = parrafos.join('\n').slice(0, 3000);
-      const texto = `
-      El artículo “IA: villana ambiental o el arma secreta” expone la paradoja de la inteligencia artificial como fuente de alto impacto ambiental —por su consumo energético, uso de agua, generación de residuos y demanda de minerales críticos— y, a la vez, como herramienta clave para enfrentar el cambio climático, destacando su uso en monitoreo ambiental, eficiencia energética y respuesta ante catástrofes, y proponiendo regulaciones para reducir su huella ecológica.
-`
-      return {
-        titulo,
-        texto,
-        url,
-      };
-    } catch (e) {
-      console.error('Error en extraerTextoDeNoticiaTool:', e.message);
-
-      return {
-        titulo: 'No se pudo extraer el título',
-        texto: 'No se pudo extraer el contenido de la noticia.',
-        url,
-      };
-    }
+    return await extraerContenidoNoticia(url);
   },
 });
 
-
+// Tool principal para evaluar noticias
 const evaluarNoticiaTool = tool({
   name: "evaluarNoticiaClimatech",
   description: "Evalúa si el texto de una noticia está relacionado con Climatech y busca newsletters relacionados",
   parameters: z.object({
     texto: z.string().describe("El contenido textual de la noticia"),
-    url: z.string().optional().describe("URL de la noticia para buscar newsletters"),
+    url: z.string().optional().describe("URL de la noticia para contexto"),
   }),
-  execute: async ({ texto }) => {
-    console.log("🔍 evaluarNoticiaTool.execute se llamó");
+  execute: async ({ texto, url }) => {
+    console.log(`🚀 Iniciando análisis completo de noticia...`);
+    
+    try {
+      // PASO 1: Extraer contenido (si no se proporcionó)
+      let contenido = texto;
+      let titulo = 'Sin título';
+      
+      if (url && !texto) {
+        const resultadoExtraccion = await extraerContenidoNoticia(url);
+        contenido = resultadoExtraccion.contenido;
+        titulo = resultadoExtraccion.titulo;
+      }
 
-    // Paso 1: Evaluar si el texto trata sobre Climatech
-    const evaluacion = await ollamaLLM.complete({
-      prompt: `${systemPrompt}\n\nNoticia:\n${texto}\n\n¿Está relacionada con Climatech?`,
-    });
+      // PASO 2: Generar resumen
+      const resumen = await generarResumen(contenido);
 
-    console.log("🧠 Evaluación cruda del modelo:", evaluacion);
+      // PASO 3: Determinar si es Climatech
+      const esClimatech = await determinarSiEsClimatech(contenido);
 
-    const respuesta = evaluacion.trim().toLowerCase();
-    const esClimatech =
-      respuesta.startsWith("sí") ||
-      respuesta.includes("✅ es una noticia sobre climatech") ||
-      respuesta.includes("sí.") ||
-      respuesta.includes("sí,");
+      if (!esClimatech) {
+        // PASO 3.1: Si no es Climatech, informar tema principal
+        try {
+          const temaPrincipalRespuesta = await llamarLLMConReintentos(
+            `Determina el tema principal de esta noticia en una frase corta:\n\n${contenido}\n\nTema principal:`,
+            0.2
+          );
+          const temaPrincipal = procesarRespuestaLLM(temaPrincipalRespuesta);
 
-    if (esClimatech) {
-      // Paso 2: Generar resumen de la noticia
-      const resumen = await ollamaLLM.complete({
-        prompt: `Leé el siguiente texto de una noticia y escribí un resumen claro en no más de 5 líneas:\n\n${texto}`,
-      });
+          return {
+            esClimatech: false,
+            mensaje: `❌ Esta noticia NO está relacionada con Climatech.\n\n📰 Título: ${titulo}\n📋 Tema principal: ${temaPrincipal}\n\n💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`,
+            resumen: null,
+            newslettersRelacionados: []
+          };
+        } catch (error) {
+          return {
+            esClimatech: false,
+            mensaje: `❌ Esta noticia NO está relacionada con Climatech.\n\n📰 Título: ${titulo}\n📋 Tema principal: No se pudo determinar debido a un timeout\n\n💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`,
+            resumen: null,
+            newslettersRelacionados: []
+          };
+        }
+      }
 
-      console.log("📝 Resumen generado:", resumen);
+      // PASO 4: Obtener newsletters de la BDD
+      const newsletters = await obtenerNewslettersBDD();
 
-      // Paso 3: Buscar newsletters relacionados
-      console.log("📥 Antes de buscar newsletters relacionados");
-      const newslettersRelacionados = await buscarNewslettersRelacionados(resumen);
-      console.log("📤 Después de buscar newsletters relacionados");
+      // PASO 5: Comparar noticia con newsletters
+      const newslettersRelacionados = await compararConNewsletters(resumen, newsletters);
+
+      // PASO 6: Preparar respuesta final
+      let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.\n\n📰 Título: ${titulo}\n📝 Resumen: ${resumen}\n\n`;
 
       if (newslettersRelacionados.length > 0) {
-        const titulos = newslettersRelacionados.map(nl => `- ${nl.titulo}`).join('\n');
-        return `✅ Es una noticia sobre Climatech.\n\n📝 Resumen:\n${resumen}\n\n📧 Newsletters relacionados:\n${titulos}`;
+        mensaje += `📧 Newsletters relacionados encontrados:\n`;
+        newslettersRelacionados.forEach((nl, index) => {
+          mensaje += `${index + 1}. ${nl.titulo}\n`;
+        });
       } else {
-        return `✅ Es una noticia sobre Climatech.\n\n📝 Resumen:\n${resumen}\n\n⚠️ No hay ningún newsletter con su misma temática.`;
+        mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
       }
-    } else {
-      // Paso 4: Si no es Climatech, indicar el tema principal
-      const temaPrincipal = await ollamaLLM.complete({
-        prompt: `Leé el siguiente texto de una noticia y decí cuál es su tema principal:\n\n${texto}`
-      });
 
-      return `❌ No es una noticia sobre Climatech. Tema principal: ${temaPrincipal}`;
+      return {
+        esClimatech: true,
+        mensaje: mensaje,
+        resumen: resumen,
+        newslettersRelacionados: newslettersRelacionados
+      };
+
+    } catch (error) {
+      console.error(`❌ Error en análisis completo: ${error.message}`);
+      return {
+        esClimatech: false,
+        mensaje: `❌ Error durante el análisis: ${error.message}\n\n💡 Verifica que Ollama esté ejecutándose y el modelo qwen3:1.7b esté disponible.`,
+        resumen: null,
+        newslettersRelacionados: []
+      };
     }
   },
 });
-
-
-
-     
- 
-
 
 // Configuración del agente
 const elagente = agent({
@@ -258,43 +380,27 @@ const elagente = agent({
     systemPrompt: systemPrompt,
 });
 
-
-// Mensaje de bienvenida
+// Mensaje de bienvenida mejorado
 const mensajeBienvenida = `
-🌱 Soy un asistente que analiza noticias.
-Pegá el link de una noticia y te digo si trata sobre Climatech o no.
-Escribí 'exit' para salir.
-`;
+🌱 CLIMATECH NEWS ANALYZER
+===========================
 
+Soy un asistente especializado en analizar noticias sobre Climatech.
+
+📋 Mi proceso:
+1. Extraigo el contenido de la noticia desde el link
+2. Genero un resumen claro
+3. Determino si es Climatech o no
+4. Si es Climatech, busco newsletters relacionados en la base de datos
+5. Te muestro los resultados
+
+🔗 Para empezar, pega el link de una noticia.
+💡 También puedes escribir 'exit' para salir.
+
+¿Qué noticia quieres analizar?
+`;
 
 // Iniciar el chat
 empezarChat(elagente, mensajeBienvenida);
-
-// -------------------
-// TEST: Ejecutar búsqueda de newsletters manualmente
-// -------------------
-
-{/*(async () => {
-  const resumenDePrueba = `
-  El ministro de Desregulación, Federico Sturzenegger, criticó duramente a los diputados que votaron contra el Gobierno en la Cámara baja, acusándolos de fomentar la corrupción al oponerse a la eliminación de organismos públicos como Vialidad, que, según él, es un foco histórico de irregularidades. Apuntó especialmente contra la Coalición Cívica, aliada del kirchnerismo en esta votación, y cuestionó su postura como incoherente con su lucha contra la corrupción. Afirmó que el presidente Milei busca desmantelar estructuras estatales diseñadas para el robo de fondos públicos, mientras que los legisladores opositores actúan para conservar esos “curros”.
-
-  `;
-
-  const respuesta = await evaluarNoticiaTool.execute({ texto: resumenDePrueba });
-  console.log("Respuesta:", respuesta);
-  if (respuesta) {
-    console.log("🧪 Ejecutando test con resumen de prueba:");
-    const relacionados = await buscarNewslettersRelacionados(resumenDePrueba);
-  
-    console.log("✅ Resultado de buscarNewslettersRelacionados:");
-    console.dir(relacionados, { depth: null });
-  }
-  else{
-    console.log("la noticia no es climatech")
-  }
-
-})();*/}
-
-//quizas comparar por palbras claves y no solo por resuemen paera que sea mas especifico. 
 
 
