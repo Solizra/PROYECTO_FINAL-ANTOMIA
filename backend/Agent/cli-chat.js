@@ -6,7 +6,13 @@ function imprimirMensaje(mensaje) {
 
 // Formateador de respuestas básico
 function formatResponse(response){
-  return `📝 Respuesta:\n${response.data.result}`;
+  // Soportar distintas formas de respuesta del agente
+  const data = response && response.data ? response.data : response;
+  const result =
+    typeof data === 'string' ? data :
+    (data && typeof data.result === 'string' ? data.result :
+    (data && data.output ? data.output : JSON.stringify(data, null, 2)));
+  return `📝 Respuesta:\n${result}`;
 }
 
 const mensajeBienvenidaDefault = `

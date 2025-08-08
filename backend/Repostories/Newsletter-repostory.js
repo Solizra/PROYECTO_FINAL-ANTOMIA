@@ -26,7 +26,7 @@ export default class NewsletterRepository {
         params.push(`%${link}%`);
       }
       if (Resumen) {
-        sql += ` AND resumen ILIKE $${params.length + 1}`;
+        sql += ` AND "Resumen" ILIKE $${params.length + 1}`;
         params.push(`%${Resumen}%`);
       }
       if (titulo) {

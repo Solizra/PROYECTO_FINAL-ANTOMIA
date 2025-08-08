@@ -39,7 +39,7 @@ IMPORTANTE: siempre que el usuario pegue un link o texto, usá las herramientas 
 const ollamaLLM = new Ollama({
   model: "qwen3:1.7b",
   temperature: 0.75,
-    timeout: 2 * 60 * 1000, // Timeout de 2 minutos
+    timeout: 4 * 60 * 1000, // Timeout de 4 minutos
 });
 
 
@@ -51,6 +51,30 @@ import * as cheerio from 'cheerio';
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
+// Extrae string de la respuesta del LLM sin importar la forma
+function getLLMText(completion) {
+  let text = "";
+  if (typeof completion === "string") {
+    text = completion;
+  } else if (completion && typeof completion === "object") {
+    if (typeof completion.completion === "string") text = completion.completion;
+    else if (typeof completion.text === "string") text = completion.text;
+    else if (typeof completion.output === "string") text = completion.output;
+    else if (typeof completion.message === "string") text = completion.message;
+    else if (Array.isArray(completion.output) && completion.output.length > 0) text = String(completion.output[0]);
+  }
+  return String(text || "").trim();
+}
+
+function normalizarTitulo(titulo) {
+  return String(titulo || "")
+    .toLowerCase()
+    .replace(/…/g, "") // elimina puntos suspensivos unicode
+    .replace(/\.\.\./g, "") // elimina tres puntos
+    .replace(/[#¿?!"¡]/g, "") // elimina signos raros
+    .replace(/\s+/g, " ") // colapsa espacios
+    .trim();
+}
 
 async function buscarNewslettersRelacionados(resumenNoticia) {
   console.log("Buscando newsletters relacionados para resumen:", resumenNoticia);
@@ -58,13 +82,16 @@ async function buscarNewslettersRelacionados(resumenNoticia) {
   const response = await fetch('http://localhost:3000/api/Newsletter');
   const newsletters = await response.json();
 
+  console.log("Los newsletters que voy a comparar son:");
+  console.log(JSON.stringify(newsletters, null, 2));
+
   // 2. Armar el prompt para el modelo LLM
   const prompt = `
 Tengo un resumen de una noticia sobre Climatech:
 "${resumenNoticia}"
 
 Y una lista de newsletters con su título y resumen:
-${newsletters.map(n => `- Título: "${n.titulo}", Resumen: ${n.resumen}`).join('\n')}
+${newsletters.map(n => `- Título: "${n.titulo}", Resumen: ${n.Resumen}`).join('\n')}
 
 Compará el resumen de la noticia con los resúmenes de los newsletters.
 Si alguno trata una temática similar, respondé solo con una lista de los **títulos exactos** de los newsletters relacionados, uno por línea.
@@ -72,13 +99,18 @@ No agregues explicaciones, solo los títulos.
 `;
 
   // 3. Consultar al modelo
-  const respuesta = await ollamaLLM.complete({
+  const completion = await ollamaLLM.complete({
     prompt,
     temperature: 0,
   });
+  console.log("DEBUG completion:", completion);
+
+  const respuesta = getLLMText(completion);
+  console.log("🧠 Texto generado por el modelo:\n", respuesta);
 
   // 4. Procesar respuesta del modelo
   const relacionados = [];
+  const idsAgregados = new Set();
 
   const lineas = respuesta
     .split('\n')
@@ -86,16 +118,21 @@ No agregues explicaciones, solo los títulos.
     .filter(Boolean);
 
   lineas.forEach(tituloRespuesta => {
+    const tituloNorm = normalizarTitulo(tituloRespuesta);
+
     const newsletter = newsletters.find(n =>
-      n.titulo.toLowerCase() === tituloRespuesta.toLowerCase()
+      normalizarTitulo(n.titulo) === tituloNorm ||
+      normalizarTitulo(n.titulo).includes(tituloNorm) ||
+      tituloNorm.includes(normalizarTitulo(n.titulo))
     );
-    if (newsletter) {
+    if (newsletter && !idsAgregados.has(newsletter.id)) {
       relacionados.push({
         id: newsletter.id,
         link: newsletter.link,
         titulo: newsletter.titulo,
-        resumen: newsletter.resumen,
+        resumen: newsletter.Resumen,
       });
+      idsAgregados.add(newsletter.id);
     }
   });
 
@@ -162,24 +199,25 @@ const evaluarNoticiaTool = tool({
     console.log("🔍 evaluarNoticiaTool.execute se llamó");
 
     // Paso 1: Evaluar si el texto trata sobre Climatech
-    const evaluacion = await ollamaLLM.complete({
+    const evaluacionRaw = await ollamaLLM.complete({
       prompt: `${systemPrompt}\n\nNoticia:\n${texto}\n\n¿Está relacionada con Climatech?`,
     });
 
-    console.log("🧠 Evaluación cruda del modelo:", evaluacion);
+    console.log("🧠 Evaluación cruda del modelo:", evaluacionRaw);
 
-    const respuesta = evaluacion.trim().toLowerCase();
+    const evaluacion = getLLMText(evaluacionRaw).toLowerCase();
     const esClimatech =
-      respuesta.startsWith("sí") ||
-      respuesta.includes("✅ es una noticia sobre climatech") ||
-      respuesta.includes("sí.") ||
-      respuesta.includes("sí,");
+      evaluacion.startsWith("sí") ||
+      evaluacion.includes("✅ es una noticia sobre climatech") ||
+      evaluacion.includes("sí.") ||
+      evaluacion.includes("sí,");
 
     if (esClimatech) {
       // Paso 2: Generar resumen de la noticia
-      const resumen = await ollamaLLM.complete({
+      const resumenRaw = await ollamaLLM.complete({
         prompt: `Leé el siguiente texto de una noticia y escribí un resumen claro en no más de 5 líneas:\n\n${texto}`,
       });
+      const resumen = getLLMText(resumenRaw);
 
       console.log("📝 Resumen generado:", resumen);
 
@@ -196,9 +234,10 @@ const evaluarNoticiaTool = tool({
       }
     } else {
       // Paso 4: Si no es Climatech, indicar el tema principal
-      const temaPrincipal = await ollamaLLM.complete({
+      const temaPrincipalRaw = await ollamaLLM.complete({
         prompt: `Leé el siguiente texto de una noticia y decí cuál es su tema principal:\n\n${texto}`
       });
+      const temaPrincipal = getLLMText(temaPrincipalRaw);
 
       return `❌ No es una noticia sobre Climatech. Tema principal: ${temaPrincipal}`;
     }
@@ -229,12 +268,13 @@ Escribí 'exit' para salir.
 
 
 // Iniciar el chat
-//empezarChat(elagente, mensajeBienvenida);
+empezarChat(elagente, mensajeBienvenida);
 
 // -------------------
 // TEST: Ejecutar búsqueda de newsletters manualmente
 // -------------------
 
+/*
 (async () => {
   const resumenDePrueba = `
     El podcast examina el agua como desafío climático y recurso estratégico, destacando su importancia en el contexto internacional, los impactos del cambio climático, y su rol en la transición energética.
@@ -247,5 +287,6 @@ Escribí 'exit' para salir.
   console.log("✅ Resultado de buscarNewslettersRelacionados:");
   console.dir(relacionados, { depth: null });
 })();
+*/
 
 

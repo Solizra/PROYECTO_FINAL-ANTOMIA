@@ -13,5 +13,5 @@ app.use(express.json());
 app.use('/api/Newsletter', NewsletterRouter); // http://localhost:3000/api/Newsletter
 
 app.listen(port, () => {
-    console.log(`Server listening on port ${process.env.DB_PORT}`);
+    console.log(`Server listening on port ${port}`);
   });
