@@ -8,15 +8,10 @@ function Home() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [trends, setTrends] = useState(
-    Array.from({ length: 10 }, (_, i) => ({
-      id: i,
-      titulo: `Trend ${i + 1}`,
-      publicado: i % 2 === 0,
-      newsletter: i % 2 === 0 ? "Sí" : "No",
-      source: "www.google.com",
-    }))
-  );
+  const [trends, setTrends] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -27,6 +22,46 @@ function Home() {
 
   const handleDelete = (id) => {
     setTrends(trends.filter(trend => trend.id !== id));
+  };
+
+  const analizar = async () => {
+    setError('');
+    if (!input.trim()) return;
+    try {
+      setLoading(true);
+      const res = await fetch('http://localhost:3000/api/Newsletter/analizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Error en el análisis');
+
+      const filas = (data.newslettersRelacionados || []).map((nl, idx) => ({
+        id: nl.id ?? idx,
+        titulo: nl.titulo,
+        publicado: true,
+        newsletter: 'Sí',
+        source: nl.link || 'N/A',
+      }));
+
+      // Si es Climatech pero no hay newsletters relacionados, mostrar la noticia como fila informativa
+      if (filas.length === 0 && data.esClimatech) {
+        filas.push({
+          id: 'info',
+          titulo: data.titulo || 'Resultado',
+          publicado: false,
+          newsletter: 'No',
+          source: data.url || 'N/A',
+        });
+      }
+
+      setTrends(filas);
+    } catch (e) {
+      setError(e.message || 'Error inesperado');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -100,11 +135,21 @@ function Home() {
         </table>
 
         <div className="footer">
-          <p>¿Tienes alguna pregunta?</p>
+          <p>Pegá el link de una noticia o escribe texto para analizar</p>
           <div className="input-wrapper">
-            <input type="text" placeholder="Escribe aquí..." />
-            <button>✈️</button>
+            <input
+              type="text"
+              placeholder="https://..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') analizar(); }}
+              disabled={loading}
+            />
+            <button onClick={analizar} disabled={loading}>
+              {loading ? 'Analizando...' : 'Analizar'}
+            </button>
           </div>
+          {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
         </div>
       </main>
     </div>
@@ -112,3 +157,5 @@ function Home() {
 }
 
 export default Home;
+
+

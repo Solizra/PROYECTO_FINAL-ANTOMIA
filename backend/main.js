@@ -1,6 +1,15 @@
+import https from 'https';
 import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import readline from 'readline';
+import { fileURLToPath } from 'url';
 
-// Palabras clave para detectar Climatech (copiadas del archivo principal)
+// Configuración
+const DEBUG = false;
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+// Palabras clave para detectar Climatech
 const CLIMATECH_KEYWORDS = [
   // Energías renovables
   'solar', 'eólica', 'hidroeléctrica', 'renovable', 'energía limpia', 'paneles solares',
@@ -38,6 +47,52 @@ const CLIMATECH_KEYWORDS = [
   'clima', 'medio ambiente', 'sostenibilidad', 'verde', 'ecológico',
   'ambiental', 'sustentable', 'climatech', 'cleantech'
 ];
+
+// Función para extraer contenido de noticias desde URLs
+async function extraerContenidoNoticia(url) {
+  try {
+    console.log(`🔗 Extrayendo contenido de: ${url}`);
+    
+    const res = await fetch(url, { agent: httpsAgent });
+    if (!res.ok) throw new Error(`Error HTTP: ${res.status} ${res.statusText}`);
+
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    // Extraer título
+    let titulo = $('title').text().trim() || 
+                 $('h1').first().text().trim() || 
+                 $('meta[property="og:title"]').attr('content') || 
+                 'Sin título';
+
+    // Extraer contenido principal
+    const parrafos = $('p, article, .content, .article-content, .post-content')
+      .map((_, el) => $(el).text().trim())
+      .get()
+      .filter(texto => texto.length > 20 && !texto.includes('cookie') && !texto.includes('privacy'));
+
+    if (parrafos.length === 0) {
+      throw new Error('No se pudo extraer contenido útil de la página');
+    }
+
+    const contenido = parrafos.join('\n').slice(0, 3000);
+    
+    console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
+    
+    return {
+      titulo: titulo,
+      contenido: contenido,
+      url: url
+    };
+  } catch (error) {
+    console.error(`❌ Error extrayendo contenido: ${error.message}`);
+    return {
+      titulo: 'Error al extraer título',
+      contenido: 'No se pudo extraer el contenido de la noticia.',
+      url: url
+    };
+  }
+}
 
 // Función para generar resumen usando análisis de texto local
 function generarResumenLocal(contenido) {
@@ -104,7 +159,6 @@ async function obtenerNewslettersBDD() {
     
     const newsletters = await response.json();
     console.log(`✅ Se obtuvieron ${newsletters.length} newsletters de la BDD`);
-    console.log('Newsletters disponibles:', newsletters.map(nl => nl.titulo));
     
     return newsletters;
   } catch (error) {
@@ -206,73 +260,192 @@ function determinarTemaPrincipalLocal(contenido) {
   }
 }
 
-// Test principal
-async function testAgenteSinOllama() {
-  console.log('🧪 INICIANDO PRUEBA DEL AGENTE (SIN OLLAMA)');
-  console.log('=============================================\n');
-
-  // Test 1: Noticia sobre Climatech
-  console.log('📰 TEST 1: Noticia sobre energías renovables');
-  const noticiaClimatech = `
-  Tesla ha anunciado una nueva inversión de $2.5 mil millones en una planta de baterías solares en Texas. 
-  La instalación producirá baterías de litio para vehículos eléctricos y sistemas de almacenamiento de energía renovable. 
-  Esta inversión creará 3,000 empleos y ayudará a acelerar la transición hacia energías limpias en Estados Unidos.
-  La empresa también implementará tecnologías de eficiencia energética y reducirá significativamente la huella de carbono.
-  `;
-
-  console.log('Contenido de la noticia:', noticiaClimatech);
-
-  // PASO 1: Determinar si es Climatech
-  const esClimatech = determinarSiEsClimatechLocal(noticiaClimatech);
+// Función principal para analizar noticias (devuelve mensaje para CLI)
+async function analizarNoticia(input) {
+  console.log(`🚀 Iniciando análisis completo de noticia (versión sin LLM)...`);
   
-  if (esClimatech) {
+  try {
+    let contenido, titulo;
+    
+    // PASO 1: Extraer contenido desde URL o usar texto directo
+    if (input.startsWith('http')) {
+      const resultadoExtraccion = await extraerContenidoNoticia(input);
+      contenido = resultadoExtraccion.contenido;
+      titulo = resultadoExtraccion.titulo;
+    } else {
+      contenido = input;
+      titulo = 'Texto proporcionado';
+    }
+
     // PASO 2: Generar resumen
-    const resumen = generarResumenLocal(noticiaClimatech);
-    
-    // PASO 3: Obtener newsletters de BDD
+    const resumen = generarResumenLocal(contenido);
+
+    // PASO 3: Determinar si es Climatech
+    const esClimatech = determinarSiEsClimatechLocal(contenido);
+
+    if (!esClimatech) {
+      // PASO 3.1: Si no es Climatech, informar tema principal
+      const temaPrincipal = determinarTemaPrincipalLocal(contenido);
+
+      return `❌ Esta noticia NO está relacionada con Climatech.
+
+📰 Título: ${titulo}
+📋 Tema principal: ${temaPrincipal}
+
+💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`;
+    }
+
+    // PASO 4: Obtener newsletters de la BDD
     const newsletters = await obtenerNewslettersBDD();
-    
-    // PASO 4: Comparar y encontrar coincidencias
+
+    // PASO 5: Comparar noticia con newsletters
     const newslettersRelacionados = compararConNewslettersLocal(resumen, newsletters);
-    
-    console.log('\n📊 RESULTADOS DEL TEST 1:');
-    console.log('==========================');
-    console.log(`✅ Es Climatech: ${esClimatech}`);
-    console.log(`📝 Resumen: ${resumen}`);
-    console.log(`📧 Newsletters relacionados: ${newslettersRelacionados.length}`);
-    newslettersRelacionados.forEach((nl, index) => {
-      console.log(`   ${index + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion})`);
-    });
-  } else {
-    console.log('\n❌ La noticia no fue clasificada como Climatech');
+
+    // PASO 6: Preparar respuesta final
+    let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.
+
+📰 Título: ${titulo}
+📝 Resumen: ${resumen}
+
+`;
+
+    if (newslettersRelacionados.length > 0) {
+      mensaje += `📧 Newsletters relacionados encontrados:
+`;
+      newslettersRelacionados.forEach((nl, index) => {
+        mensaje += `${index + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion})
+`;
+      });
+    } else {
+      mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
+    }
+
+    return mensaje;
+
+  } catch (error) {
+    console.error(`❌ Error en análisis completo: ${error.message}`);
+    return `❌ Error durante el análisis: ${error.message}`;
   }
-
-  console.log('\n' + '='.repeat(50));
-  
-  // Test 2: Noticia NO sobre Climatech
-  console.log('\n📰 TEST 2: Noticia sobre deportes');
-  const noticiaNoClimatech = `
-  Lionel Messi ha firmado un nuevo contrato con el Inter Miami por $50 millones anuales. 
-  El jugador argentino continuará en la MLS por dos temporadas más, con opción de extensión. 
-  Esta renovación confirma su compromiso con el proyecto deportivo del club estadounidense.
-  El delantero ha marcado 15 goles en su primera temporada con el equipo.
-  `;
-
-  console.log('Contenido de la noticia:', noticiaNoClimatech);
-
-  const esClimatech2 = determinarSiEsClimatechLocal(noticiaNoClimatech);
-  const temaPrincipal = determinarTemaPrincipalLocal(noticiaNoClimatech);
-  console.log(`\n📊 RESULTADO TEST 2: ${esClimatech2 ? 'SÍ es Climatech' : 'NO es Climatech'}`);
-  console.log(`📋 Tema principal: ${temaPrincipal}`);
-
-  console.log('\n✅ PRUEBA COMPLETADA');
-  console.log('\n🎯 VENTAJAS DE LA VERSIÓN SIN OLLAMA:');
-  console.log('- ⚡ Respuesta instantánea (sin timeouts)');
-  console.log('- 🔒 No requiere Ollama instalado');
-  console.log('- 💰 Gratis (sin costos de API)');
-  console.log('- 🛡️ Funciona offline');
-  console.log('- 📊 Análisis transparente con puntuaciones');
 }
 
-// Ejecutar test
-testAgenteSinOllama().catch(console.error);
+// Función para analizar noticia y devolver estructura para API
+export async function analizarNoticiaEstructurada(input) {
+  try {
+    let contenido, titulo, url = '';
+    if (input.startsWith('http')) {
+      const resultadoExtraccion = await extraerContenidoNoticia(input);
+      contenido = resultadoExtraccion.contenido;
+      titulo = resultadoExtraccion.titulo;
+      url = input;
+    } else {
+      contenido = input;
+      titulo = 'Texto proporcionado';
+    }
+
+    const resumen = generarResumenLocal(contenido);
+    const esClimatech = determinarSiEsClimatechLocal(contenido);
+    let newsletters = [];
+    let relacionados = [];
+    if (esClimatech) {
+      newsletters = await obtenerNewslettersBDD();
+      relacionados = compararConNewslettersLocal(resumen, newsletters);
+    }
+
+    return {
+      esClimatech,
+      titulo,
+      resumen: esClimatech ? resumen : null,
+      url,
+      newslettersRelacionados: relacionados.map(nl => ({
+        id: nl.id,
+        titulo: nl.titulo,
+        Resumen: nl.Resumen || '',
+        link: nl.link || '',
+        puntuacion: nl.puntuacion || 0,
+      })),
+    };
+  } catch (error) {
+    return {
+      esClimatech: false,
+      titulo: 'Error',
+      resumen: null,
+      url: '',
+      newslettersRelacionados: [],
+      error: error.message || String(error),
+    };
+  }
+}
+
+// Función para manejar el chat interactivo
+async function empezarChat() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const mensajeBienvenida = `
+🌱 CLIMATECH NEWS ANALYZER (SIN LLM)
+=====================================
+
+Soy un asistente especializado en analizar noticias sobre Climatech.
+Esta versión funciona completamente sin LLM, usando análisis de texto local.
+
+📋 Mi proceso:
+1. Extraigo el contenido de la noticia desde el link
+2. Genero un resumen usando análisis de texto local
+3. Determino si es Climatech usando palabras clave
+4. Si es Climatech, busco newsletters relacionados en la base de datos
+5. Te muestro los resultados
+
+🔗 Para empezar, pega el link de una noticia.
+💡 También puedes escribir 'exit' para salir.
+
+¿Qué noticia quieres analizar?
+`;
+
+  console.log(mensajeBienvenida);
+
+  const pregunta = () => {
+    rl.question('> ', async (input) => {
+      if (input.toLowerCase() === 'exit') {
+        console.log('👋 ¡Hasta luego!');
+        rl.close();
+        return;
+      }
+
+      if (input.trim() === '') {
+        console.log('💡 Por favor, ingresa un link de noticia o texto para analizar.');
+        pregunta();
+        return;
+      }
+
+      try {
+        const resultado = await analizarNoticia(input);
+        console.log('\n' + resultado + '\n');
+      } catch (error) {
+        console.log(`❌ Error procesando la solicitud: ${error.message}`);
+        console.log('💡 Intenta con otro link o escribe "exit" para salir.\n');
+      }
+
+      pregunta();
+    });
+  };
+
+  pregunta();
+}
+
+// Iniciar el chat
+const isDirectRun = (() => {
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    return process.argv[1] && (process.argv[1] === thisFile || process.argv[1].endsWith('main.js'));
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectRun) {
+  empezarChat();
+}
+
+

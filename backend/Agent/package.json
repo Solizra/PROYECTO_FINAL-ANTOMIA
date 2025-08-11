@@ -5,22 +5,11 @@
   "type": "module",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js",
-    "start-no-ollama": "node main-no-ollama.js",
-    "test": "node test-agent.js",
-    "test-no-ollama": "node test-no-ollama.js",
-    "test-no-llm": "node test-no-llm.js",
-    "dev": "node main.js",
-    "dev-no-ollama": "node main-no-ollama.js",
-    "setup": "node setup.js",
-    "install-deps": "node install.js",
-    "check-ollama": "node check-ollama.js"
+    "start": "node main.js"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
-    "dotenv": "^17.1.0",
-    "node-fetch": "^3.3.2",
-    "pg": "^8.16.3"
+    "node-fetch": "^3.3.2"
   },
   "keywords": [
     "climatech",

@@ -1,87 +1,52 @@
-import { tool, agent } from "llamaindex";
-import { Ollama } from "@llamaindex/ollama";
-import { z } from "zod";
-import { empezarChat } from './cli-chat.js'
 import https from 'https';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
+import readline from 'readline';
+import { fileURLToPath } from 'url';
 
 // Configuración
 const DEBUG = false;
 
-// Configuración del LLM con timeout extendido y reintentos
-const ollamaLLM = new Ollama({
-  model: "qwen3:1.7b",
-  temperature: 0.3,
-  timeout: 8 * 60 * 1000, // 8 minutos para evitar timeouts
-});
-
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-// System prompt mejorado
-const systemPrompt = `
-Eres un asistente especializado en análisis de noticias sobre Climatech (tecnologías climáticas).
-Tu función es analizar noticias y determinar si están relacionadas con Climatech, que incluye:
-- Energías renovables (solar, eólica, hidroeléctrica, etc.)
-- Eficiencia energética
-- Captura y almacenamiento de carbono
-- Movilidad sostenible (vehículos eléctricos, transporte público)
-- Agricultura sostenible
-- Tecnologías de monitoreo ambiental
-- Políticas climáticas y regulaciones ambientales
-- Innovación en materiales sostenibles
-- Economía circular
-
-Responde de manera clara y estructurada siguiendo el formato especificado.
-`.trim();
-
-// Función auxiliar para procesar respuestas del LLM
-function procesarRespuestaLLM(respuesta) {
-  if (typeof respuesta === 'string') {
-    return respuesta.trim();
-  } else if (respuesta && typeof respuesta === 'object') {
-    // Intentar diferentes propiedades comunes
-    if (respuesta.text) return respuesta.text.trim();
-    if (respuesta.content) return respuesta.content.trim();
-    if (respuesta.response) return respuesta.response.trim();
-    if (respuesta.message) return respuesta.message.trim();
-    if (respuesta.completion) return respuesta.completion.trim();
-    if (respuesta.output) return respuesta.output.trim();
-    if (respuesta.result) return respuesta.result.trim();
-    // Si es un objeto con propiedades, intentar convertirlo a string
-    return JSON.stringify(respuesta).trim();
-  } else {
-    return String(respuesta || '').trim();
-  }
-}
-
-// Función para llamar al LLM con reintentos
-async function llamarLLMConReintentos(prompt, temperature = 0.2, maxReintentos = 3) {
-  for (let intento = 1; intento <= maxReintentos; intento++) {
-    try {
-      console.log(`🧠 Intento ${intento}/${maxReintentos} - Llamando al LLM...`);
-      
-      const respuesta = await ollamaLLM.complete({
-        prompt: prompt,
-        temperature: temperature,
-      });
-      
-      console.log(`✅ LLM respondió exitosamente en intento ${intento}`);
-      return respuesta;
-    } catch (error) {
-      console.error(`❌ Error en intento ${intento}: ${error.message}`);
-      
-      if (intento === maxReintentos) {
-        throw new Error(`Falló después de ${maxReintentos} intentos: ${error.message}`);
-      }
-      
-      // Esperar antes del siguiente intento
-      const tiempoEspera = intento * 2000; // 2s, 4s, 6s
-      console.log(`⏳ Esperando ${tiempoEspera/1000}s antes del siguiente intento...`);
-      await new Promise(resolve => setTimeout(resolve, tiempoEspera));
-    }
-  }
-}
+// Palabras clave para detectar Climatech
+const CLIMATECH_KEYWORDS = [
+  // Energías renovables
+  'solar', 'eólica', 'hidroeléctrica', 'renovable', 'energía limpia', 'paneles solares',
+  'turbinas eólicas', 'energía verde', 'sostenible', 'sustentable',
+  
+  // Eficiencia energética
+  'eficiencia energética', 'ahorro energético', 'consumo energético', 'optimización',
+  'edificios verdes', 'certificación energética',
+  
+  // Captura de carbono
+  'carbono', 'CO2', 'emisiones', 'captura', 'secuestro', 'neutralidad',
+  'huella de carbono', 'compensación', 'reducción emisiones',
+  
+  // Movilidad sostenible
+  'vehículo eléctrico', 'coche eléctrico', 'transporte público', 'bicicleta',
+  'movilidad sostenible', 'transporte limpio', 'autobús eléctrico',
+  
+  // Agricultura sostenible
+  'agricultura sostenible', 'agricultura orgánica', 'permacultura',
+  'agricultura regenerativa', 'cultivo orgánico',
+  
+  // Tecnologías ambientales
+  'monitoreo ambiental', 'sensores', 'IoT ambiental', 'tecnología verde',
+  'innovación ambiental', 'tech climático',
+  
+  // Políticas climáticas
+  'cambio climático', 'política climática', 'acuerdo de parís', 'COP',
+  'regulación ambiental', 'normativa verde', 'impuestos verdes',
+  
+  // Materiales sostenibles
+  'materiales sostenibles', 'biodegradable', 'reciclable', 'economía circular',
+  'reutilización', 'sostenibilidad', 'materiales verdes',
+  
+  // Términos generales
+  'clima', 'medio ambiente', 'sostenibilidad', 'verde', 'ecológico',
+  'ambiental', 'sustentable', 'climatech', 'cleantech'
+];
 
 // Función para extraer contenido de noticias desde URLs
 async function extraerContenidoNoticia(url) {
@@ -129,66 +94,55 @@ async function extraerContenidoNoticia(url) {
   }
 }
 
-// Función para generar resumen de la noticia
-async function generarResumen(contenido) {
+// Función para generar resumen usando análisis de texto local
+function generarResumenLocal(contenido) {
   try {
-    console.log(`📝 Generando resumen...`);
+    console.log(`📝 Generando resumen local...`);
     
-    const prompt = `
-Analiza el siguiente contenido de una noticia y genera un resumen claro y conciso en máximo 3 líneas:
-
-${contenido}
-
-Resumen:`;
-
-    const respuesta = await llamarLLMConReintentos(prompt, 0.2);
-    const resumen = procesarRespuestaLLM(respuesta);
+    // Dividir en oraciones
+    const oraciones = contenido.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    
+    // Seleccionar las primeras 3 oraciones más relevantes
+    const resumen = oraciones.slice(0, 3).join('. ').trim();
+    
     console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
     
-    return resumen;
+    return resumen + '.';
   } catch (error) {
     console.error(`❌ Error generando resumen: ${error.message}`);
-    return 'No se pudo generar el resumen debido a un timeout.';
+    return 'No se pudo generar el resumen.';
   }
 }
 
-// Función para determinar si es Climatech
-async function determinarSiEsClimatech(contenido) {
+// Función para determinar si es Climatech usando análisis de palabras clave
+function determinarSiEsClimatechLocal(contenido) {
   try {
-    console.log(`🔍 Evaluando si es Climatech...`);
+    console.log(`🔍 Evaluando si es Climatech (análisis local)...`);
     
-    const prompt = `
-Analiza el siguiente contenido de una noticia y determina si está relacionada con Climatech (tecnologías climáticas).
-
-Climatech incluye:
-- Energías renovables (solar, eólica, hidroeléctrica, etc.)
-- Eficiencia energética
-- Captura y almacenamiento de carbono
-- Movilidad sostenible (vehículos eléctricos, transporte público)
-- Agricultura sostenible
-- Tecnologías de monitoreo ambiental
-- Políticas climáticas y regulaciones ambientales
-- Innovación en materiales sostenibles
-- Economía circular
-
-Contenido de la noticia:
-${contenido}
-
-Responde únicamente con "SÍ" si está relacionada con Climatech, o "NO" si no lo está.`;
-
-    const respuesta = await llamarLLMConReintentos(prompt, 0.1);
-    const respuestaProcesada = procesarRespuestaLLM(respuesta);
-    const esClimatech = respuestaProcesada.toLowerCase().includes('sí') || 
-                       respuestaProcesada.toLowerCase().includes('si') ||
-                       respuestaProcesada.toLowerCase().includes('yes');
+    const contenidoLower = contenido.toLowerCase();
+    let puntuacion = 0;
+    const palabrasEncontradas = [];
     
-    console.log(`✅ Evaluación: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
-    console.log(`🧠 Respuesta del modelo: "${respuestaProcesada}"`);
+    // Contar coincidencias de palabras clave
+    CLIMATECH_KEYWORDS.forEach(keyword => {
+      if (contenidoLower.includes(keyword.toLowerCase())) {
+        puntuacion += 1;
+        palabrasEncontradas.push(keyword);
+      }
+    });
+    
+    // Calcular densidad de palabras clave
+    const densidad = puntuacion / (contenido.split(' ').length / 100); // palabras por 100
+    
+    const esClimatech = puntuacion >= 3 || densidad >= 2; // Al menos 3 palabras clave o densidad alta
+    
+    console.log(`✅ Evaluación local: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
+    console.log(`📊 Puntuación: ${puntuacion} palabras clave encontradas`);
+    console.log(`🔍 Palabras encontradas: ${palabrasEncontradas.join(', ')}`);
     
     return esClimatech;
   } catch (error) {
     console.error(`❌ Error evaluando Climatech: ${error.message}`);
-    // En caso de error, asumir que no es Climatech para evitar falsos positivos
     return false;
   }
 }
@@ -213,184 +167,233 @@ async function obtenerNewslettersBDD() {
   }
 }
 
-// Función para comparar noticia con newsletters
-async function compararConNewsletters(resumenNoticia, newsletters) {
+// Función para comparar noticia con newsletters usando similitud de texto
+function compararConNewslettersLocal(resumenNoticia, newsletters) {
   try {
-    console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters...`);
+    console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters (análisis local)...`);
     
     if (newsletters.length === 0) {
       console.log(`⚠️ No hay newsletters en la base de datos para comparar`);
       return [];
     }
 
-    const prompt = `
-Compara el siguiente resumen de una noticia sobre Climatech con los newsletters de la base de datos.
-
-RESUMEN DE LA NOTICIA:
-${resumenNoticia}
-
-NEWSLETTERS DISPONIBLES:
-${newsletters.map((nl, index) => `${index + 1}. Título: "${nl.titulo}"
-   Resumen: ${nl.Resumen || 'Sin resumen'}`).join('\n\n')}
-
-INSTRUCCIONES:
-- Analiza si algún newsletter trata temas similares a la noticia
-- Considera palabras clave, conceptos y temáticas relacionadas
-- Responde ÚNICAMENTE con los números de los newsletters relacionados, separados por comas
-- Si no hay coincidencias, responde "NINGUNO"
-
-Ejemplo de respuesta: "1, 3, 5" o "NINGUNO"
-
-Newsletters relacionados:`;
-
-    const respuesta = await llamarLLMConReintentos(prompt, 0.1);
-    const respuestaProcesada = procesarRespuestaLLM(respuesta);
-    console.log(`🧠 Respuesta del modelo: ${respuestaProcesada}`);
-
-    // Procesar respuesta
-    if (respuestaProcesada.toLowerCase().includes('ninguno') || respuestaProcesada === '') {
-      console.log(`✅ No se encontraron newsletters relacionados`);
-      return [];
-    }
-
-    // Extraer números de newsletters relacionados
-    const numeros = respuestaProcesada
-      .split(/[,\s]+/)
-      .map(num => parseInt(num.trim()))
-      .filter(num => !isNaN(num) && num > 0 && num <= newsletters.length);
-
-    const newslettersRelacionados = numeros.map(num => newsletters[num - 1]);
+    const resumenLower = resumenNoticia.toLowerCase();
+    const newslettersRelacionados = [];
+    
+    newsletters.forEach((newsletter, index) => {
+      let puntuacion = 0;
+      const tituloLower = newsletter.titulo.toLowerCase();
+      const resumenNewsletter = (newsletter.Resumen || '').toLowerCase();
+      
+      // Comparar palabras clave entre el resumen de la noticia y el newsletter
+      CLIMATECH_KEYWORDS.forEach(keyword => {
+        const keywordLower = keyword.toLowerCase();
+        if (resumenLower.includes(keywordLower) && 
+            (tituloLower.includes(keywordLower) || resumenNewsletter.includes(keywordLower))) {
+          puntuacion += 2; // Coincidencia doble
+        } else if (resumenLower.includes(keywordLower) || 
+                   tituloLower.includes(keywordLower) || 
+                   resumenNewsletter.includes(keywordLower)) {
+          puntuacion += 1; // Coincidencia simple
+        }
+      });
+      
+      // Si hay al menos 2 coincidencias, considerar relacionado
+      if (puntuacion >= 2) {
+        newslettersRelacionados.push({
+          ...newsletter,
+          puntuacion: puntuacion
+        });
+      }
+    });
+    
+    // Ordenar por puntuación y tomar los mejores
+    newslettersRelacionados.sort((a, b) => b.puntuacion - a.puntuacion);
     
     console.log(`✅ Se encontraron ${newslettersRelacionados.length} newsletters relacionados`);
     
-    return newslettersRelacionados;
+    return newslettersRelacionados.slice(0, 5); // Máximo 5 resultados
   } catch (error) {
     console.error(`❌ Error comparando newsletters: ${error.message}`);
     return [];
   }
 }
 
-// Tool para extraer texto de noticia
-const extraerTextoDeNoticiaTool = tool({
-  name: "extraerTextoDeNoticia",
-  description: "Extrae el contenido principal de una noticia desde un link, incluyendo el título y el texto.",
-  parameters: z.object({
-    url: z.string().describe("El link de la noticia"),
-  }),
-  execute: async ({ url }) => {
-    return await extraerContenidoNoticia(url);
-  },
-});
-
-// Tool principal para evaluar noticias
-const evaluarNoticiaTool = tool({
-  name: "evaluarNoticiaClimatech",
-  description: "Evalúa si el texto de una noticia está relacionado con Climatech y busca newsletters relacionados",
-  parameters: z.object({
-    texto: z.string().describe("El contenido textual de la noticia"),
-    url: z.string().optional().describe("URL de la noticia para contexto"),
-  }),
-  execute: async ({ texto, url }) => {
-    console.log(`🚀 Iniciando análisis completo de noticia...`);
+// Función para determinar tema principal usando análisis de texto
+function determinarTemaPrincipalLocal(contenido) {
+  try {
+    console.log(`📋 Determinando tema principal (análisis local)...`);
     
-    try {
-      // PASO 1: Extraer contenido (si no se proporcionó)
-      let contenido = texto;
-      let titulo = 'Sin título';
-      
-      if (url && !texto) {
-        const resultadoExtraccion = await extraerContenidoNoticia(url);
-        contenido = resultadoExtraccion.contenido;
-        titulo = resultadoExtraccion.titulo;
-      }
-
-      // PASO 2: Generar resumen
-      const resumen = await generarResumen(contenido);
-
-      // PASO 3: Determinar si es Climatech
-      const esClimatech = await determinarSiEsClimatech(contenido);
-
-      if (!esClimatech) {
-        // PASO 3.1: Si no es Climatech, informar tema principal
-        try {
-          const temaPrincipalRespuesta = await llamarLLMConReintentos(
-            `Determina el tema principal de esta noticia en una frase corta:\n\n${contenido}\n\nTema principal:`,
-            0.2
-          );
-          const temaPrincipal = procesarRespuestaLLM(temaPrincipalRespuesta);
-
-          return {
-            esClimatech: false,
-            mensaje: `❌ Esta noticia NO está relacionada con Climatech.\n\n📰 Título: ${titulo}\n📋 Tema principal: ${temaPrincipal}\n\n💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`,
-            resumen: null,
-            newslettersRelacionados: []
-          };
-        } catch (error) {
-          return {
-            esClimatech: false,
-            mensaje: `❌ Esta noticia NO está relacionada con Climatech.\n\n📰 Título: ${titulo}\n📋 Tema principal: No se pudo determinar debido a un timeout\n\n💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`,
-            resumen: null,
-            newslettersRelacionados: []
-          };
+    const contenidoLower = contenido.toLowerCase();
+    const temas = {
+      'tecnología': ['tecnología', 'tech', 'innovación', 'startup', 'app', 'software', 'digital'],
+      'deportes': ['fútbol', 'futbol', 'deportes', 'liga', 'equipo', 'jugador', 'partido', 'gol'],
+      'política': ['gobierno', 'política', 'elecciones', 'presidente', 'ministro', 'congreso', 'ley'],
+      'economía': ['economía', 'mercado', 'inversión', 'bolsa', 'empresa', 'finanzas', 'dólar'],
+      'entretenimiento': ['película', 'pelicula', 'música', 'musica', 'actor', 'actriz', 'cine', 'teatro'],
+      'salud': ['salud', 'médico', 'medico', 'hospital', 'enfermedad', 'tratamiento', 'vacuna'],
+      'educación': ['educación', 'educacion', 'universidad', 'escuela', 'estudiante', 'profesor', 'académico']
+    };
+    
+    let mejorTema = 'general';
+    let mejorPuntuacion = 0;
+    
+    Object.entries(temas).forEach(([tema, palabras]) => {
+      let puntuacion = 0;
+      palabras.forEach(palabra => {
+        if (contenidoLower.includes(palabra)) {
+          puntuacion += 1;
         }
+      });
+      
+      if (puntuacion > mejorPuntuacion) {
+        mejorPuntuacion = puntuacion;
+        mejorTema = tema;
       }
+    });
+    
+    console.log(`✅ Tema principal detectado: ${mejorTema}`);
+    return mejorTema;
+  } catch (error) {
+    console.error(`❌ Error determinando tema: ${error.message}`);
+    return 'general';
+  }
+}
 
-      // PASO 4: Obtener newsletters de la BDD
-      const newsletters = await obtenerNewslettersBDD();
-
-      // PASO 5: Comparar noticia con newsletters
-      const newslettersRelacionados = await compararConNewsletters(resumen, newsletters);
-
-      // PASO 6: Preparar respuesta final
-      let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.\n\n📰 Título: ${titulo}\n📝 Resumen: ${resumen}\n\n`;
-
-      if (newslettersRelacionados.length > 0) {
-        mensaje += `📧 Newsletters relacionados encontrados:\n`;
-        newslettersRelacionados.forEach((nl, index) => {
-          mensaje += `${index + 1}. ${nl.titulo}\n`;
-        });
-      } else {
-        mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
-      }
-
-      return {
-        esClimatech: true,
-        mensaje: mensaje,
-        resumen: resumen,
-        newslettersRelacionados: newslettersRelacionados
-      };
-
-    } catch (error) {
-      console.error(`❌ Error en análisis completo: ${error.message}`);
-      return {
-        esClimatech: false,
-        mensaje: `❌ Error durante el análisis: ${error.message}\n\n💡 Verifica que Ollama esté ejecutándose y el modelo qwen3:1.7b esté disponible.`,
-        resumen: null,
-        newslettersRelacionados: []
-      };
+// Función principal para analizar noticias (devuelve mensaje para CLI)
+async function analizarNoticia(input) {
+  console.log(`🚀 Iniciando análisis completo de noticia (versión sin LLM)...`);
+  
+  try {
+    let contenido, titulo;
+    
+    // PASO 1: Extraer contenido desde URL o usar texto directo
+    if (input.startsWith('http')) {
+      const resultadoExtraccion = await extraerContenidoNoticia(input);
+      contenido = resultadoExtraccion.contenido;
+      titulo = resultadoExtraccion.titulo;
+    } else {
+      contenido = input;
+      titulo = 'Texto proporcionado';
     }
-  },
-});
 
-// Configuración del agente
-const elagente = agent({
-    tools: [extraerTextoDeNoticiaTool, evaluarNoticiaTool],
-    llm: ollamaLLM,
-    verbose: DEBUG,
-    systemPrompt: systemPrompt,
-});
+    // PASO 2: Generar resumen
+    const resumen = generarResumenLocal(contenido);
 
-// Mensaje de bienvenida mejorado
-const mensajeBienvenida = `
-🌱 CLIMATECH NEWS ANALYZER
-===========================
+    // PASO 3: Determinar si es Climatech
+    const esClimatech = determinarSiEsClimatechLocal(contenido);
+
+    if (!esClimatech) {
+      // PASO 3.1: Si no es Climatech, informar tema principal
+      const temaPrincipal = determinarTemaPrincipalLocal(contenido);
+
+      return `❌ Esta noticia NO está relacionada con Climatech.
+
+📰 Título: ${titulo}
+📋 Tema principal: ${temaPrincipal}
+
+💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`;
+    }
+
+    // PASO 4: Obtener newsletters de la BDD
+    const newsletters = await obtenerNewslettersBDD();
+
+    // PASO 5: Comparar noticia con newsletters
+    const newslettersRelacionados = compararConNewslettersLocal(resumen, newsletters);
+
+    // PASO 6: Preparar respuesta final
+    let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.
+
+📰 Título: ${titulo}
+📝 Resumen: ${resumen}
+
+`;
+
+    if (newslettersRelacionados.length > 0) {
+      mensaje += `📧 Newsletters relacionados encontrados:
+`;
+      newslettersRelacionados.forEach((nl, index) => {
+        mensaje += `${index + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion})
+`;
+      });
+    } else {
+      mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
+    }
+
+    return mensaje;
+
+  } catch (error) {
+    console.error(`❌ Error en análisis completo: ${error.message}`);
+    return `❌ Error durante el análisis: ${error.message}`;
+  }
+}
+
+// Función para analizar noticia y devolver estructura para API
+export async function analizarNoticiaEstructurada(input) {
+  try {
+    let contenido, titulo, url = '';
+    if (input.startsWith('http')) {
+      const resultadoExtraccion = await extraerContenidoNoticia(input);
+      contenido = resultadoExtraccion.contenido;
+      titulo = resultadoExtraccion.titulo;
+      url = input;
+    } else {
+      contenido = input;
+      titulo = 'Texto proporcionado';
+    }
+
+    const resumen = generarResumenLocal(contenido);
+    const esClimatech = determinarSiEsClimatechLocal(contenido);
+    let newsletters = [];
+    let relacionados = [];
+    if (esClimatech) {
+      newsletters = await obtenerNewslettersBDD();
+      relacionados = compararConNewslettersLocal(resumen, newsletters);
+    }
+
+    return {
+      esClimatech,
+      titulo,
+      resumen: esClimatech ? resumen : null,
+      url,
+      newslettersRelacionados: relacionados.map(nl => ({
+        id: nl.id,
+        titulo: nl.titulo,
+        Resumen: nl.Resumen || '',
+        link: nl.link || '',
+        puntuacion: nl.puntuacion || 0,
+      })),
+    };
+  } catch (error) {
+    return {
+      esClimatech: false,
+      titulo: 'Error',
+      resumen: null,
+      url: '',
+      newslettersRelacionados: [],
+      error: error.message || String(error),
+    };
+  }
+}
+
+// Función para manejar el chat interactivo
+async function empezarChat() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const mensajeBienvenida = `
+🌱 CLIMATECH NEWS ANALYZER (SIN LLM)
+=====================================
 
 Soy un asistente especializado en analizar noticias sobre Climatech.
+Esta versión funciona completamente sin LLM, usando análisis de texto local.
 
 📋 Mi proceso:
 1. Extraigo el contenido de la noticia desde el link
-2. Genero un resumen claro
-3. Determino si es Climatech o no
+2. Genero un resumen usando análisis de texto local
+3. Determino si es Climatech usando palabras clave
 4. Si es Climatech, busco newsletters relacionados en la base de datos
 5. Te muestro los resultados
 
@@ -400,7 +403,49 @@ Soy un asistente especializado en analizar noticias sobre Climatech.
 ¿Qué noticia quieres analizar?
 `;
 
+  console.log(mensajeBienvenida);
+
+  const pregunta = () => {
+    rl.question('> ', async (input) => {
+      if (input.toLowerCase() === 'exit') {
+        console.log('👋 ¡Hasta luego!');
+        rl.close();
+        return;
+      }
+
+      if (input.trim() === '') {
+        console.log('💡 Por favor, ingresa un link de noticia o texto para analizar.');
+        pregunta();
+        return;
+      }
+
+      try {
+        const resultado = await analizarNoticia(input);
+        console.log('\n' + resultado + '\n');
+      } catch (error) {
+        console.log(`❌ Error procesando la solicitud: ${error.message}`);
+        console.log('💡 Intenta con otro link o escribe "exit" para salir.\n');
+      }
+
+      pregunta();
+    });
+  };
+
+  pregunta();
+}
+
 // Iniciar el chat
-empezarChat(elagente, mensajeBienvenida);
+const isDirectRun = (() => {
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    return process.argv[1] && (process.argv[1] === thisFile || process.argv[1].endsWith('main.js'));
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectRun) {
+  empezarChat();
+}
 
 
