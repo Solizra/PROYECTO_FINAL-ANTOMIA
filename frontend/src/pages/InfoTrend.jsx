@@ -3,17 +3,19 @@ import "./InfoTrend.css";
 
 function InfoTrend() {
   const { id } = useParams();
+  const saved = localStorage.getItem('trends');
+  const list = saved ? JSON.parse(saved) : [];
+  const current = list.find((t) => String(t.id) === String(id)) || {};
 
-  // Datos de ejemplo (luego podés reemplazar con fetch desde Supabase)
   const trend = {
-    titulo: `Trend ${id}`,
-    descripcion:
-      "Este es un breve resumen del trend, explicando de qué se trata y cuáles son sus puntos clave. Un párrafo conciso que ayude a entender la temática.",
-    razonamientoIA:
-      "La IA seleccionó este trend debido a su impacto potencial en el sector tecnológico, su crecimiento exponencial en las búsquedas y su relevancia en medios internacionales.",
-    fecha: "11/08/2025",
-    fuente: "https://www.google.com",
-    personas: "Elon Musk, Sundar Pichai, Satya Nadella",
+    titulo: current.trendTitulo || `Trend ${id}`,
+    descripcion: current.resumenFama || '—',
+    razonamientoIA: current.analisisRelacion || '—',
+    fecha: current.fechaRelacion ? new Date(current.fechaRelacion).toLocaleString() : '—',
+    fuente: current.trendLink || '—',
+    personas: current.autor || '',
+    newsletterLink: current.newsletterLink || '',
+    newsletterTitulo: current.newsletterTitulo || '',
   };
 
   return (
@@ -45,6 +47,14 @@ function InfoTrend() {
                 {trend.fuente}
               </a>
             </div>
+            {trend.newsletterLink && (
+              <div className="infotrend-card">
+                <h3>📧 Newsletter</h3>
+                <a href={trend.newsletterLink} target="_blank" rel="noreferrer">
+                  {trend.newsletterTitulo || trend.newsletterLink}
+                </a>
+              </div>
+            )}
             <div className="infotrend-card">
               <h3>👥 Personas involucradas</h3>
               <p>{trend.personas}</p>

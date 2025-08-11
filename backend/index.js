@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import NewsletterRouter from './Controllers/Newsletter-controller.js'
+import TrendsRouter from './Controllers/Trends-controller.js'
 import { analizarNoticiaEstructurada } from './Agent/main.js';
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,6 +12,7 @@ app.use(express.json());
 
 // Definición de rutas principales (cada una con su controlador y servicio detrás)
 app.use('/api/Newsletter', NewsletterRouter); // http://localhost:3000/api/Newsletter
+app.use('/api/Trends', TrendsRouter); // http://localhost:3000/api/Trends
 
 // Ruta directa para análisis (redundante con el router, pero asegura disponibilidad)
 app.post('/api/Newsletter/analizar', async (req, res) => {

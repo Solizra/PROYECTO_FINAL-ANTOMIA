@@ -19,7 +19,15 @@ function Home() {
     if (!user) {
       navigate("/"); // si no hay sesión, redirige a login
     }
+    const saved = localStorage.getItem('trends');
+    if (saved) {
+      try { setTrends(JSON.parse(saved)); } catch {}
+    }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('trends', JSON.stringify(trends));
+  }, [trends]);
 
   const handleDelete = (id) => {
     setTrends(trends.filter((trend) => trend.id !== id));
@@ -38,24 +46,43 @@ function Home() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Error en el análisis');
 
-      const filas = (data.newslettersRelacionados || []).map((nl, idx) => ({
+      // Si la API devolvió inserts (ids guardados), úsalo; sino usa map base
+      const baseFilas = (data.newslettersRelacionados || []).map((nl, idx) => ({
         id: nl.id ?? idx,
-        titulo: nl.titulo,
-        publicado: true,
-        newsletter: 'Sí',
-        source: nl.link || 'N/A',
+        newsletterTitulo: nl.titulo || '',
+        newsletterId: nl.id ?? '',
+        fechaRelacion: nl.fechaRelacion || new Date().toISOString(),
+        trendTitulo: data.titulo || '',
+        trendLink: data.url || '',
+        relacionado: true,
+        newsletterLink: nl.link || '',
+        analisisRelacion: nl.analisisRelacion || '',
+        resumenFama: data.resumenFama || '',
+        autor: data.autor || '',
       }));
-
-      // Si es Climatech pero no hay newsletters relacionados, mostrar la noticia como fila informativa
-      if (filas.length === 0 && data.esClimatech) {
-        filas.push({
-          id: 'info',
-          titulo: data.titulo || 'Resultado',
-          publicado: false,
-          newsletter: 'No',
-          source: data.url || 'N/A',
-        });
-      }
+      const filas = (data.inserts && data.inserts.length > 0)
+        ? data.inserts.map((ins, idx) => ({
+            id: ins.id ?? idx,
+            newsletterTitulo: ins.Nombre_Newsletter_Relacionado || '',
+            newsletterId: ins.id_newsletter ?? '',
+            fechaRelacion: ins.Fecha_Relación || new Date().toISOString(),
+            trendTitulo: ins.Título_del_Trend || data.titulo || '',
+            trendLink: ins.Link_del_Trend || data.url || '',
+            relacionado: !!ins.Relacionado,
+            newsletterLink: ins.newsletterLink || '',
+            analisisRelacion: '',
+            resumenFama: data.resumenFama || '',
+            autor: data.autor || '',
+          }))
+        : (baseFilas.length > 0 ? baseFilas : [{
+            id: 'sin-relacion',
+            newsletterTitulo: '',
+            newsletterId: '',
+            fechaRelacion: '',
+            trendTitulo: data.titulo || '',
+            trendLink: data.url || '',
+            relacionado: false,
+          }]);
 
       setTrends(filas);
     } catch (e) {
@@ -107,41 +134,39 @@ function Home() {
               <th>
                 <input type="checkbox" />
               </th>
-              <th>Título</th>
-              <th>Status</th>
-              <th>Newsletter</th>
-              <th>Fuente</th>
+              <th>Título del Trend</th>
+              <th>Link del Trend</th>
+              <th>Nombre Newsletter Relacionado</th>
+              <th>ID Newsletter</th>
+              <th>Fecha Relación</th>
+              <th>Relacionado</th>
               <th>Eliminar</th>
             </tr>
           </thead>
           <tbody>
             {trends.map((trend) => (
-              <tr key={trend.id}>
+              <tr key={`${trend.id}-${trend.trendLink || ''}`}>
                 <td>
-                  <Link to={`/trends/${trend.id}`}>
+                  <Link to={`/trends/${trend.id || ''}`}>
                     <button className="info-btn-outline">
-                      <img src="../src/assets/ojito.png" alt="Ojo"></img>      
+                      <img src="../src/assets/ojito.png" alt="Ojo" />
                     </button>
                   </Link>
                 </td>
-                <td>{trend.titulo}</td>
+                <td>{trend.trendTitulo || '—'}</td>
                 <td>
-                  <span
-                    className={
-                      trend.publicado
-                        ? "status published"
-                        : "status not-published"
-                    }
-                  >
-                    {trend.publicado ? "Publicado" : "No publicado"}
-                  </span>
+                  {trend.trendLink ? (
+                    <a href={trend.trendLink} target="_blank" rel="noreferrer">{trend.trendLink}</a>
+                  ) : '—'}
                 </td>
-                <td>{trend.newsletter}</td>
-                <td>{trend.source}</td>
+                <td>{trend.newsletterTitulo || '—'}</td>
+                <td>{trend.newsletterId || '—'}</td>
+                <td>{trend.fechaRelacion ? new Date(trend.fechaRelacion).toLocaleString() : '—'}</td>
+                <td style={{ textAlign: 'center' }}>{trend.relacionado ? '✔️' : '✖️'}</td>
                 <td>
                   <button
                     className="delete-btn"
-                    onClick={() => handleDelete(trend.id)}
+                    onClick={() => handleDelete(trend.id || `${trend.trendTitulo}-${trend.trendLink}`)}
                   >
                     🗙
                   </button>

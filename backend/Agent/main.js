@@ -48,6 +48,132 @@ const CLIMATECH_KEYWORDS = [
   'ambiental', 'sustentable', 'climatech', 'cleantech'
 ];
 
+// Stopwords básicas en español para mejorar la similitud
+const STOPWORDS_ES = new Set([
+  'a','acá','ahi','al','algo','algunas','algunos','allá','alli','allí','ambos','ante','antes','aquel','aquella','aquellas','aquello','aquellos','aqui','aquí','arriba','asi','aun','aunque','bajo','bastante','bien','cada','casi','como','cómo','con','contra','cual','cuales','cualquier','cualquiera','cualquieras','cuan','cuando','cuanta','cuantas','cuanto','cuantos','de','dejar','del','demasiado','demás','dentro','desde','donde','dos','el','él','ella','ellas','ellos','empleais','emplean','emplear','empleas','en','encima','entonces','entre','era','eramos','eran','eras','eres','es','esa','esas','ese','eso','esos','esta','estaba','estaban','estado','estais','estamos','estan','estar','estas','este','esto','estos','estoy','fin','fue','fueron','fui','fuimos','gueno','ha','hace','haceis','hacemos','hacen','hacer','haces','hacia','hasta','incluso','intenta','intentais','intentamos','intentan','intentar','intentas','ir','jamás','junto','juntos','la','lado','las','le','les','lo','los','luego','mal','mas','más','me','menos','mi','mia','mias','mientras','mio','mios','mis','misma','mismas','mismo','mismos','modo','mucha','muchas','muchísima','muchísimas','muchísimo','muchísimos','mucho','muchos','muy','nada','ni','ninguna','ningunas','ninguno','ningunos','no','nos','nosotras','nosotros','nuestra','nuestras','nuestro','nuestros','nunca','os','otra','otras','otro','otros','para','parecer','pero','poca','pocas','poco','pocos','por','porque','primero','puede','pueden','pues','que','qué','querer','quien','quién','quienes','quiénes','quiza','quizas','sabe','sabeis','sabemos','saben','saber','sabes','se','segun','ser','si','sí','siempre','siendo','sin','sino','so','sobre','sois','solamente','solo','somos','son','soy','su','sus','suya','suyas','suyo','suyos','tal','también','tampoco','tan','tanta','tantas','tanto','tantos','te','teneis','tenemos','tener','tengo','ti','tiempo','tiene','tienen','toda','todas','todavia','todavía','todo','todos','tomar','trabaja','trabajais','trabajamos','trabajan','trabajar','trabajas','tras','tu','tus','tuya','tuyas','tuyo','tuyos','un','una','unas','uno','unos','usa','usais','usamos','usan','usar','usas','usted','ustedes','va','vais','valor','vamos','van','varias','varios','vaya','verdad','verdadera','verdadero','vosotras','vosotros','voy','yo'
+]);
+
+function removeDiacritics(text) {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function tokenize(text) {
+  const clean = removeDiacritics(String(text || '').toLowerCase())
+    .replace(/[^a-z0-9áéíóúñü\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const tokens = clean.split(' ').filter(t => t.length > 1 && !STOPWORDS_ES.has(t));
+  return tokens;
+}
+
+function buildTermFreq(tokens) {
+  const tf = new Map();
+  for (const tok of tokens) {
+    tf.set(tok, (tf.get(tok) || 0) + 1);
+  }
+  return tf;
+}
+
+function cosineSimilarity(tfA, tfB) {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (const [term, val] of tfA.entries()) {
+    normA += val * val;
+    if (tfB.has(term)) dot += val * (tfB.get(term) || 0);
+  }
+  for (const val of tfB.values()) normB += val * val;
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) + 1e-9) / (Math.sqrt(normB) + 1e-9);
+}
+
+function bigrams(tokens) {
+  const res = [];
+  for (let i = 0; i < tokens.length - 1; i++) {
+    res.push(tokens[i] + ' ' + tokens[i + 1]);
+  }
+  return res;
+}
+
+function jaccard(setA, setB) {
+  const inter = new Set([...setA].filter(x => setB.has(x))).size;
+  const uni = new Set([...setA, ...setB]).size;
+  if (uni === 0) return 0;
+  return inter / uni;
+}
+
+// Detectar plataforma a partir del host
+function detectarPlataforma(urlString) {
+  try {
+    const url = new URL(urlString);
+    const host = url.hostname.toLowerCase();
+    if (host.includes('twitter.com') || host.includes('x.com')) return 'Twitter/X';
+    if (host.includes('instagram.com')) return 'Instagram';
+    if (host.includes('tiktok.com')) return 'TikTok';
+    if (host.includes('youtube.com') || host.includes('youtu.be')) return 'YouTube';
+    if (host.includes('facebook.com')) return 'Facebook';
+    return host;
+  } catch {
+    return '';
+  }
+}
+
+// Generar breve resumen de por qué el trend es relevante/famoso
+function generarResumenFamaTrend(contenido, sitio, autor, plataforma) {
+  const tokens = tokenize(contenido);
+  const tf = buildTermFreq(tokens);
+  const top = [...tf.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t])=>t).join(', ');
+  const partes = [];
+  if (top) partes.push(`Tema destacado: ${top}`);
+  if (plataforma) partes.push(`Difundido en ${plataforma}`);
+  else if (sitio) partes.push(`Publicado en ${sitio}`);
+  if (autor) partes.push(`Autor/Perfil: ${autor}`);
+  return partes.length ? partes.join(' | ') : 'Trend relevante por su contenido y difusión.';
+}
+
+// Generar razonamiento de relación entre trend y newsletter
+function generarAnalisisRelacionTexto({ matchedTags = [], matchedTop = [], sitio = '', autor = '', plataforma = '', newsletterTitulo = '' }) {
+  const secciones = [];
+  if (newsletterTitulo) secciones.push(`Relación con "${newsletterTitulo}"`);
+  if (matchedTags.length) secciones.push(`Temas comunes: ${matchedTags.join(', ')}`);
+  if (matchedTop.length) secciones.push(`Palabras clave coincidentes: ${matchedTop.join(', ')}`);
+  if (plataforma) secciones.push(`Fuente: ${plataforma}`);
+  else if (sitio) secciones.push(`Fuente: ${sitio}`);
+  if (autor) secciones.push(`Publicado por: ${autor}`);
+  return secciones.join(' | ') || 'Relacionado por similitud temática y de palabras clave.';
+}
+
+// Mapa de temas y sinónimos para mejorar coincidencias semánticas
+const THEMATIC_SYNONYMS = {
+  ia: ['ia', 'inteligencia artificial', 'ai', 'machine learning', 'aprendizaje automático'],
+  agua: ['agua', 'hídrica', 'hidrica', 'hídrico', 'hidrico', 'water', 'recurso hídrico'],
+  energia: ['energía', 'energia', 'renovable', 'renovables', 'energías renovables', 'solar', 'eólica', 'hidroeléctrica', 'hidroelectrica', 'geotérmica', 'geotermica'],
+  carbono: ['carbono', 'co2', 'captura de carbono', 'secuestro de carbono', 'emisiones', 'neutralidad de carbono'],
+  movilidad: ['vehículo eléctrico', 'vehiculos eléctricos', 'coche eléctrico', 'movilidad sostenible', 'transporte limpio'],
+  agricultura: ['agricultura sostenible', 'agricultura regenerativa', 'permacultura', 'cultivo orgánico', 'agtech'],
+  biodiversidad: ['biodiversidad', 'créditos de biodiversidad', 'conservación', 'conservacion'],
+  hidrogeno: ['hidrógeno', 'hidrogeno', 'h2', 'hidrógeno verde', 'hidrogeno verde'],
+};
+
+function normalizeText(text) {
+  return removeDiacritics(String(text || '').toLowerCase());
+}
+
+function extractThematicTags(text) {
+  const norm = normalizeText(text);
+  const tags = new Set();
+  for (const [tag, synonyms] of Object.entries(THEMATIC_SYNONYMS)) {
+    for (const syn of synonyms) {
+      const synNorm = normalizeText(syn);
+      if (norm.includes(synNorm)) {
+        tags.add(tag);
+        break;
+      }
+    }
+  }
+  return tags;
+}
+
 // Función para extraer contenido de noticias desde URLs
 async function extraerContenidoNoticia(url) {
   try {
@@ -64,6 +190,11 @@ async function extraerContenidoNoticia(url) {
                  $('h1').first().text().trim() || 
                  $('meta[property="og:title"]').attr('content') || 
                  'Sin título';
+
+    // Metadatos
+    const siteName = $('meta[property="og:site_name"]').attr('content') || $('meta[name="application-name"]').attr('content') || '';
+    const author = $('meta[name="author"]').attr('content') || $('meta[property="article:author"]').attr('content') || '';
+    const published = $('meta[property="article:published_time"]').attr('content') || $('meta[name="date"]').attr('content') || $('meta[itemprop="datePublished"]').attr('content') || '';
 
     // Extraer contenido principal
     const parrafos = $('p, article, .content, .article-content, .post-content')
@@ -82,14 +213,20 @@ async function extraerContenidoNoticia(url) {
     return {
       titulo: titulo,
       contenido: contenido,
-      url: url
+      url: url,
+      sitio: siteName || (new URL(url)).hostname,
+      autor: author,
+      fechaPublicacion: published
     };
   } catch (error) {
     console.error(`❌ Error extrayendo contenido: ${error.message}`);
     return {
       titulo: 'Error al extraer título',
       contenido: 'No se pudo extraer el contenido de la noticia.',
-      url: url
+      url: url,
+      sitio: (new URL(url)).hostname,
+      autor: '',
+      fechaPublicacion: ''
     };
   }
 }
@@ -101,10 +238,10 @@ function generarResumenLocal(contenido) {
     
     // Dividir en oraciones
     const oraciones = contenido.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    
+
     // Seleccionar las primeras 3 oraciones más relevantes
     const resumen = oraciones.slice(0, 3).join('. ').trim();
-    
+
     console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
     
     return resumen + '.';
@@ -170,49 +307,79 @@ async function obtenerNewslettersBDD() {
 // Función para comparar noticia con newsletters usando similitud de texto
 function compararConNewslettersLocal(resumenNoticia, newsletters) {
   try {
-    console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters (análisis local)...`);
+    console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters (análisis local mejorado)...`);
     
     if (newsletters.length === 0) {
       console.log(`⚠️ No hay newsletters en la base de datos para comparar`);
       return [];
     }
 
-    const resumenLower = resumenNoticia.toLowerCase();
-    const newslettersRelacionados = [];
-    
-    newsletters.forEach((newsletter, index) => {
-      let puntuacion = 0;
-      const tituloLower = newsletter.titulo.toLowerCase();
-      const resumenNewsletter = (newsletter.Resumen || '').toLowerCase();
-      
-      // Comparar palabras clave entre el resumen de la noticia y el newsletter
-      CLIMATECH_KEYWORDS.forEach(keyword => {
-        const keywordLower = keyword.toLowerCase();
-        if (resumenLower.includes(keywordLower) && 
-            (tituloLower.includes(keywordLower) || resumenNewsletter.includes(keywordLower))) {
-          puntuacion += 2; // Coincidencia doble
-        } else if (resumenLower.includes(keywordLower) || 
-                   tituloLower.includes(keywordLower) || 
-                   resumenNewsletter.includes(keywordLower)) {
-          puntuacion += 1; // Coincidencia simple
-        }
-      });
-      
-      // Si hay al menos 2 coincidencias, considerar relacionado
-      if (puntuacion >= 2) {
-        newslettersRelacionados.push({
-          ...newsletter,
-          puntuacion: puntuacion
-        });
+    const tokensResumen = tokenize(resumenNoticia);
+    const bigramResumen = bigrams(tokensResumen);
+    const tfResumen = buildTermFreq(tokensResumen);
+    const tagsResumen = extractThematicTags(resumenNoticia);
+
+    // Palabras clave del resumen (top 10 por frecuencia)
+    const topKeywords = [...tfResumen.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([term]) => term);
+    const topKeywordSet = new Set(topKeywords);
+
+    const newslettersScored = newsletters.map((newsletter) => {
+      const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
+      const tokensDoc = tokenize(textoDoc);
+      const tfDoc = buildTermFreq(tokensDoc);
+      const cos = cosineSimilarity(tfResumen, tfDoc);
+      const bigramDoc = bigrams(tokensDoc);
+      const bigJacc = jaccard(new Set(bigramResumen), new Set(bigramDoc));
+      const tagsDoc = extractThematicTags(textoDoc);
+      const tagOverlap = jaccard(tagsResumen, tagsDoc);
+
+      // Coincidencias mínimas de palabras clave principales
+      let matchesTop = 0;
+      for (const t of tokensDoc) {
+        if (topKeywordSet.has(t)) matchesTop++;
       }
-    });
-    
-    // Ordenar por puntuación y tomar los mejores
-    newslettersRelacionados.sort((a, b) => b.puntuacion - a.puntuacion);
-    
-    console.log(`✅ Se encontraron ${newslettersRelacionados.length} newsletters relacionados`);
-    
-    return newslettersRelacionados.slice(0, 5); // Máximo 5 resultados
+
+      // Score combinado con pesos (menos estricto, considerando tags)
+      const score = 0.5 * cos + 0.25 * bigJacc + 0.25 * Math.min(tagOverlap * 3, 1);
+
+      // Guardar detalles de coincidencias
+      const matchedTopArr = topKeywords.filter(t => tokensDoc.includes(t));
+      const matchedTagsArr = [...tagsResumen].filter(t => extractThematicTags(textoDoc).has(t));
+
+      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr };
+    })
+    // Filtro de gating más flexible: si comparten al menos 2 keywords top o 1 tag y score razonable
+    .filter(nl => (nl._matchesTop >= 2 || nl._tagOverlap >= 0.25) && nl._score >= 0.08)
+    .sort((a, b) => b._score - a._score)
+    .slice(0, 3)
+    .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
+
+    console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados)`);
+    if (newslettersScored.length > 0) return newslettersScored;
+
+    // Fallback menos estricto si no hay resultados: filtrar por intersección de tags o coincidencia de 2 keywords simples
+    const fallback = newsletters.map((newsletter) => {
+      const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
+      const tagsDoc = extractThematicTags(textoDoc);
+      const overlapCount = [...tagsResumen].filter(t => tagsDoc.has(t)).length;
+      const tokensDoc = tokenize(textoDoc);
+      let simpleMatches = 0;
+      for (const kw of topKeywords) {
+        if (tokensDoc.includes(kw)) simpleMatches++;
+      }
+      const simpleScore = overlapCount * 2 + simpleMatches;
+      return { ...newsletter, _fallback: simpleScore };
+    })
+    .filter(nl => nl._fallback >= 2)
+    .sort((a, b) => b._fallback - a._fallback)
+    .slice(0, 3)
+    .map(nl => ({ ...nl, puntuacion: nl._fallback * 10 }));
+
+    console.log(`ℹ️ Fallback: ${fallback.length} newsletters por coincidencia simple`);
+    return fallback;
   } catch (error) {
     console.error(`❌ Error comparando newsletters: ${error.message}`);
     return [];
@@ -270,21 +437,21 @@ async function analizarNoticia(input) {
     // PASO 1: Extraer contenido desde URL o usar texto directo
     if (input.startsWith('http')) {
       const resultadoExtraccion = await extraerContenidoNoticia(input);
-      contenido = resultadoExtraccion.contenido;
-      titulo = resultadoExtraccion.titulo;
+        contenido = resultadoExtraccion.contenido;
+        titulo = resultadoExtraccion.titulo;
     } else {
       contenido = input;
       titulo = 'Texto proporcionado';
-    }
+      }
 
-    // PASO 2: Generar resumen
+      // PASO 2: Generar resumen
     const resumen = generarResumenLocal(contenido);
 
-    // PASO 3: Determinar si es Climatech
+      // PASO 3: Determinar si es Climatech
     const esClimatech = determinarSiEsClimatechLocal(contenido);
 
-    if (!esClimatech) {
-      // PASO 3.1: Si no es Climatech, informar tema principal
+      if (!esClimatech) {
+        // PASO 3.1: Si no es Climatech, informar tema principal
       const temaPrincipal = determinarTemaPrincipalLocal(contenido);
 
       return `❌ Esta noticia NO está relacionada con Climatech.
@@ -293,15 +460,15 @@ async function analizarNoticia(input) {
 📋 Tema principal: ${temaPrincipal}
 
 💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`;
-    }
+      }
 
-    // PASO 4: Obtener newsletters de la BDD
-    const newsletters = await obtenerNewslettersBDD();
+      // PASO 4: Obtener newsletters de la BDD
+      const newsletters = await obtenerNewslettersBDD();
 
-    // PASO 5: Comparar noticia con newsletters
+      // PASO 5: Comparar noticia con newsletters
     const newslettersRelacionados = compararConNewslettersLocal(resumen, newsletters);
 
-    // PASO 6: Preparar respuesta final
+      // PASO 6: Preparar respuesta final
     let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.
 
 📰 Título: ${titulo}
@@ -309,21 +476,21 @@ async function analizarNoticia(input) {
 
 `;
 
-    if (newslettersRelacionados.length > 0) {
+      if (newslettersRelacionados.length > 0) {
       mensaje += `📧 Newsletters relacionados encontrados:
 `;
-      newslettersRelacionados.forEach((nl, index) => {
+        newslettersRelacionados.forEach((nl, index) => {
         mensaje += `${index + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion})
 `;
-      });
-    } else {
-      mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
-    }
+        });
+      } else {
+        mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
+      }
 
     return mensaje;
 
-  } catch (error) {
-    console.error(`❌ Error en análisis completo: ${error.message}`);
+    } catch (error) {
+      console.error(`❌ Error en análisis completo: ${error.message}`);
     return `❌ Error durante el análisis: ${error.message}`;
   }
 }
@@ -332,11 +499,17 @@ async function analizarNoticia(input) {
 export async function analizarNoticiaEstructurada(input) {
   try {
     let contenido, titulo, url = '';
+    let sitio = '';
+    let autor = '';
+    let fechaPublicacion = '';
     if (input.startsWith('http')) {
       const resultadoExtraccion = await extraerContenidoNoticia(input);
       contenido = resultadoExtraccion.contenido;
       titulo = resultadoExtraccion.titulo;
       url = input;
+      sitio = resultadoExtraccion.sitio || '';
+      autor = resultadoExtraccion.autor || '';
+      fechaPublicacion = resultadoExtraccion.fechaPublicacion || '';
     } else {
       contenido = input;
       titulo = 'Texto proporcionado';
@@ -351,24 +524,44 @@ export async function analizarNoticiaEstructurada(input) {
       relacionados = compararConNewslettersLocal(resumen, newsletters);
     }
 
+    const fechaRelacion = new Date().toISOString();
+    const plataforma = url ? detectarPlataforma(url) : '';
+    const resumenFama = generarResumenFamaTrend(contenido, sitio, autor, plataforma);
+
     return {
       esClimatech,
       titulo,
       resumen: esClimatech ? resumen : null,
       url,
+      sitio,
+      autor,
+      fechaPublicacion,
+      resumenFama,
       newslettersRelacionados: relacionados.map(nl => ({
         id: nl.id,
         titulo: nl.titulo,
         Resumen: nl.Resumen || '',
         link: nl.link || '',
         puntuacion: nl.puntuacion || 0,
+        fechaRelacion,
+        analisisRelacion: (() => {
+          const tags = (nl._matchedTagsArr || []).join(', ');
+          const tops = (nl._matchedTopArr || []).join(', ');
+          const partes = [];
+          if (tags) partes.push(`Coincidencia temática: ${tags}`);
+          if (tops) partes.push(`Palabras clave comunes: ${tops}`);
+          if (plataforma) partes.push(`Fuente: ${plataforma}`);
+          else if (sitio) partes.push(`Fuente: ${sitio}`);
+          if (autor) partes.push(`Autor/Perfil: ${autor}`);
+          return partes.length ? partes.join(' | ') : 'Relacionados por similitud de contenido.';
+        })()
       })),
     };
   } catch (error) {
-    return {
-      esClimatech: false,
+      return {
+        esClimatech: false,
       titulo: 'Error',
-      resumen: null,
+        resumen: null,
       url: '',
       newslettersRelacionados: [],
       error: error.message || String(error),
@@ -383,7 +576,7 @@ async function empezarChat() {
     output: process.stdout
   });
 
-  const mensajeBienvenida = `
+const mensajeBienvenida = `
 🌱 CLIMATECH NEWS ANALYZER (SIN LLM)
 =====================================
 
