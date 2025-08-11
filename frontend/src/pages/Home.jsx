@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import './Home.css';
-import { supabase } from '../supabaseClient';
-import { LogOut } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import "./Home.css";
+import { supabase } from "../supabaseClient";
+import { LogOut } from "lucide-react";
 
 function Home() {
   const location = useLocation();
@@ -19,23 +19,23 @@ function Home() {
   );
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = JSON.parse(localStorage.getItem("user"));
     if (!user) {
-      navigate('/'); // si no hay sesión, redirige a login
+      navigate("/"); // si no hay sesión, redirige a login
     }
   }, []);
 
   const handleDelete = (id) => {
-    setTrends(trends.filter(trend => trend.id !== id));
+    setTrends(trends.filter((trend) => trend.id !== id));
   };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Error al cerrar sesión:', error.message);
+      console.error("Error al cerrar sesión:", error.message);
     } else {
-      localStorage.removeItem('user'); // limpia el storage
-      navigate('/');
+      localStorage.removeItem("user"); // limpia el storage
+      navigate("/");
     }
   };
 
@@ -45,17 +45,19 @@ function Home() {
         <h2>AntomIA</h2>
         <nav>
           <ul>
-            <li className={location.pathname === '/Home' ? 'active' : ''}>
+            <li className={location.pathname === "/Home" ? "active" : ""}>
               <Link to="/Home">Trends</Link>
             </li>
-            <li className={location.pathname === '/publicaciones' ? 'active' : ''}>
+            <li
+              className={location.pathname === "/publicaciones" ? "active" : ""}
+            >
               <Link to="/publicaciones">Publicaciones</Link>
             </li>
           </ul>
         </nav>
 
         <button className="logout-btn" onClick={handleLogout}>
-          <LogOut size={18} style={{ marginRight: '8px' }} />
+          <LogOut size={18} style={{ marginRight: "8px" }} />
           Cerrar sesión
         </button>
       </aside>
@@ -66,7 +68,9 @@ function Home() {
         <table className="trends-table">
           <thead>
             <tr>
-              <th><input type="checkbox" /></th>
+              <th>
+                <input type="checkbox" />
+              </th>
               <th>Título</th>
               <th>Status</th>
               <th>Newsletter</th>
@@ -77,10 +81,20 @@ function Home() {
           <tbody>
             {trends.map((trend) => (
               <tr key={trend.id}>
-                <td><input type="checkbox" /></td>
+                <td>
+                  <Link to={`/trends/${trend.id}`}>
+                    <button className="info-btn-outline">🔎</button>
+                  </Link>
+                </td>
                 <td>{trend.titulo}</td>
                 <td>
-                  <span className={trend.publicado ? "status published" : "status not-published"}>
+                  <span
+                    className={
+                      trend.publicado
+                        ? "status published"
+                        : "status not-published"
+                    }
+                  >
                     {trend.publicado ? "Publicado" : "No publicado"}
                   </span>
                 </td>
