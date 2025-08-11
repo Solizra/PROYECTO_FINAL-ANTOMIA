@@ -189,9 +189,15 @@
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.2s, color 0.2s;
+  height: 32px;
 }
 
 .info-btn-outline:hover {
-  background-color: #76f6ff;
+  background-color: #76f6ff4b;
   color: #000;
+}
+
+.info-btn-outline img {
+  max-width: 20px;
+  max-height: 20px;
 }

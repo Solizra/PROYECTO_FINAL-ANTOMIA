@@ -5,6 +5,7 @@ import { supabase } from "../supabaseClient";
 import { LogOut } from "lucide-react";
 
 function Home() {
+  const ojo= "https://cdn-icons-png.freepik.com/512/3722/3722014.png";
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -83,7 +84,9 @@ function Home() {
               <tr key={trend.id}>
                 <td>
                   <Link to={`/trends/${trend.id}`}>
-                    <button className="info-btn-outline">🔎</button>
+                    <button className="info-btn-outline">
+                      <img src="../src/assets/ojito.png" alt="Ojo"></img>      
+                    </button>
                   </Link>
                 </td>
                 <td>{trend.titulo}</td>
