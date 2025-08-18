@@ -7,9 +7,8 @@ import path from 'path';
 import { procesarUrlsYPersistir } from '../Agent/main.js';
 
 // 🔐 Pegá tu clave acá
-const API_KEY = '5cd26781b7d64a329de50c8899fc5eaa'; // 👈 reemplazar
+const API_KEY = '5cd26781b7d64a329de50c8899fc5eaa'; 
 
-const fechaActual = new Date(Date.now());
 function restarDias(fecha, dias) {
   const nuevaFecha = new Date(fecha);
   nuevaFecha.setDate(nuevaFecha.getDate() - dias);
@@ -32,7 +31,6 @@ const trustedDomains = [
   'nationalgeographic.com',
   'eltiempo.com',
 ];
-const fromDate = restarDias(fechaActual, 7); //resta 7 dias a la fecha actual
 const sortBy = 'relevancy';
 const language = 'es';
 
@@ -44,6 +42,9 @@ const noticiasFilePath = path.join(__dirname, 'noticias.json');
 // maxResults: máximo de resultados a devolver (1..100). Por defecto 20
 async function buscarNoticias(maxResults = 5) { // Cambia este número por el que quieras
   try {
+    // Calcular el rango de fechas en cada ejecución (ventana móvil)
+    const fechaActual = new Date();
+    const fromDate = restarDias(fechaActual, 7);
     const pageSize = Math.min(Math.max(parseInt(maxResults, 10) || 20, 1), 100);
     const fromDateISO = (fromDate instanceof Date ? fromDate : new Date(fromDate))
       .toISOString()
@@ -132,11 +133,13 @@ function iniciarProgramacionAutomatica() {
   
   const cronExpression = '*/1 * * * *'; // Cada minuto
   
+  // Nota: evitamos especificar timezone para mayor compatibilidad en Windows
+  // y entornos sin ICU completo. Para expresiones por minuto no es necesario.
   cron.schedule(cronExpression, () => {
+    console.log(`⏱️ Disparador cron: ${new Date().toLocaleString()}`);
     buscarNoticias(); // refresca solo las URLs para el agente/front
   }, {
-    scheduled: true,
-    timezone: "America/Argentina/Buenos_Aires" // Ajusta a tu zona horaria
+    scheduled: true
   });
   
   console.log(`⏰ Programación configurada: ejecutando cada minuto`);
