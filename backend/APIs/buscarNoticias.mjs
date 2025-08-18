@@ -15,9 +15,12 @@ function restarDias(fecha, dias) {
   return nuevaFecha;
 }
 
-// 🔍 Término que querés buscar (enfocado en Climatech y energía/sostenibilidad, con exclusiones)
+// 🔍 Término que querés buscar (enfocado en Climatech y sostenibilidad, más amplio)
 const query = `(
- 'medio ambiente')`;
+  medio ambiente OR climatech OR cleantech OR "energía renovable" OR "energias renovables" OR
+  sostenibilidad OR "cambio climático" OR "eficiencia energética" OR "emisiones" OR
+  "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular"
+)`;
 
 // 📰 Medios confiables (dominios) para restringir resultados
 const trustedDomains = [
@@ -25,14 +28,30 @@ const trustedDomains = [
   'bbc.com',
   'pagina12.com.ar',
   'elcronista.com',
-  'elperiodico.com',
   'lanacion.com.ar',
   'clarin.com',
   'nationalgeographic.com',
   'eltiempo.com',
+  'elmundo.es',
+  'elconfidencial.com',
+  'ambito.com',
+  'infobae.com',
+  'eldiario.es',
 ];
 const sortBy = 'relevancy';
 const language = 'es';
+// Palabras clave para filtrar temática si el proveedor devuelve ruido
+const TOPIC_KEYWORDS = [
+  'climatech', 'cleantech', 'clima', 'medio ambiente', 'ambiental', 'sosten',
+  'energ', 'renovabl', 'solar', 'eólic', 'eolic', 'geotérm', 'geoterm', 'hidroeléctr', 'hidroelect',
+  'emision', 'emisión', 'co2', 'carbono', 'captura de carbono', 'huella de carbono',
+  'hidrógeno', 'hidrogeno', 'movilidad', 'eléctr', 'electric', 'vehículo eléctrico',
+  'recicl', 'economía circular', 'economia circular', 'agua', 'biodiversidad'
+];
+
+function removeDiacriticsLocal(str) {
+  try { return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch { return String(str || ''); }
+}
 
 // Ruta absoluta al archivo de salida para asegurar escritura en la misma carpeta del módulo
 const __filename = fileURLToPath(import.meta.url);
@@ -40,7 +59,7 @@ const __dirname = path.dirname(__filename);
 const noticiasFilePath = path.join(__dirname, 'noticias.json');
 
 // maxResults: máximo de resultados a devolver (1..100). Por defecto 20
-async function buscarNoticias(maxResults = 5) { // Cambia este número por el que quieras
+async function buscarNoticias(maxResults = 30) { // traer más resultados por defecto
   try {
     // Calcular el rango de fechas en cada ejecución (ventana móvil)
     const fechaActual = new Date();
@@ -54,13 +73,14 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
     
     const url = `https://newsapi.org/v2/everything?` +
       `q=${encodeURIComponent(query.replace(/\s+/g, ' '))}` +
-      `&searchIn=title,description` +
-      `&domains=${encodeURIComponent(trustedDomains.join(','))}` +
+      `&searchIn=title,description,content` +
       `&from=${fromDateISO}` +
       `&language=${language}` +
       `&sortBy=${sortBy}` +
       `&pageSize=${pageSize}` +
       `&page=1` +
+      // Restringir a dominios confiables desde la propia API
+      `&domains=${encodeURIComponent(trustedDomains.join(','))}` +
       `&apiKey=${API_KEY}`;
 
     const res = await fetch(url);
@@ -72,17 +92,29 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
     }
 
 
-    // Filtrado adicional por dominio confiable (por si el API retorna algo fuera de la lista)
-    const articles = (data.articles || [])
-      .filter(a => {
-        try {
-          const urlObj = new URL(a.url || '');
-          return trustedDomains.some(d => urlObj.hostname.includes(d));
-        } catch {
-          return false;
-        }
-      })
-      .slice(0, pageSize);
+    const allArticles = (data.articles || []);
+    // Filtrado adicional por dominio confiable (estricto)
+    let filtered = allArticles.filter(a => {
+      try {
+        const urlObj = new URL(a.url || '');
+        return trustedDomains.some(d => urlObj.hostname.includes(d));
+      } catch {
+        return false;
+      }
+    });
+    // Filtro temático adicional por título/descr (insensible a acentos) con puntuación mínima
+    const topical = filtered.filter(a => {
+      const textNorm = removeDiacriticsLocal(`${a.title || ''} ${a.description || ''}`.toLowerCase());
+      let hits = 0;
+      for (const k of TOPIC_KEYWORDS) {
+        const kNorm = removeDiacriticsLocal(k.toLowerCase());
+        if (textNorm.includes(kNorm)) hits++;
+        if (hits >= 2) break;
+      }
+      return hits >= 1; // exige al menos 1 coincidencia; subir a 2 si se quiere más precisión
+    });
+    const chosen = topical.length > 0 ? topical : filtered;
+    const articles = chosen.slice(0, pageSize);
 
       
 
@@ -96,9 +128,10 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
 
     // Guardar en archivo JSON dentro de esta carpeta
     fs.writeFileSync(noticiasFilePath, JSON.stringify(minimal, null, 2));
-    console.log(`✅ URLs guardadas en "${noticiasFilePath}"`);
+    console.log(`✅ URLs guardadas en "${noticiasFilePath}" (${minimal.length} items)`);
 
-    // Enviar URLs al agente para analizar y (si corresponde) persistir en Trends
+    // Enviar URLs al agente para analizar y (si corresponde) persistir en Trends.
+    // Si hubo errores de extracción, el agente responderá con esClimatech=false y no se insertará.
     try {
       console.log(`🤖 Enviando ${minimal.length} URLs al agente para análisis...`);
       await procesarUrlsYPersistir(minimal);

@@ -256,14 +256,8 @@ async function extraerContenidoNoticia(url) {
     };
   } catch (error) {
     console.error(`❌ Error extrayendo contenido: ${error.message}`);
-    return {
-      titulo: 'Error al extraer título',
-      contenido: 'No se pudo extraer el contenido de la noticia.',
-      url: url,
-      sitio: (new URL(url)).hostname,
-      autor: '',
-      fechaPublicacion: ''
-    };
+    // Propagar error semántico: el caller decidirá no persistir
+    throw error;
   }
 }
 
@@ -415,14 +409,14 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
 
       return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr, _sameHost: sameHost };
     })
-    // Gating: acepta forzados por URL exacta; si mismo dominio, umbrales levemente más flexibles
+    // Gating más flexible: baja umbrales para aumentar recall
     .filter(nl => (
       nl._forced === true || (
-        (nl._sameHost ? nl._score >= 0.16 : nl._score >= 0.18) &&
-        nl._matchesTop >= 3 &&
-        (nl._bigJacc >= 0.08 || nl._triJacc >= 0.03) &&
-        nl._tagOverlap >= 0.25 &&
-        nl._entityOverlapCount >= 1
+        (nl._sameHost ? nl._score >= 0.12 : nl._score >= 0.15) &&
+        nl._matchesTop >= 2 &&
+        (nl._bigJacc >= 0.05 || nl._triJacc >= 0.02) &&
+        nl._tagOverlap >= 0.15 &&
+        nl._entityOverlapCount >= 0
       )
     ))
     .sort((a, b) => b._score - a._score)
@@ -432,7 +426,7 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
     console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados)`);
     if (newslettersScored.length > 0) return newslettersScored;
 
-    // Fallback MUY conservador: requiere trigram o 2 bigramas y 3 keywords
+    // Fallback menos estricto para no perder candidatos
     const fallback = newsletters.map((newsletter) => {
       const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
       const tokensDoc = tokenize(textoDoc);
@@ -444,7 +438,7 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
       const entitiesOverlap = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
       return { ...newsletter, _tri: tri, _big: big, _kw: kw, _ent: entitiesOverlap };
     })
-    .filter(nl => (nl._tri >= 0.02 || nl._big >= 0.12) && nl._kw >= 3 && nl._ent >= 1)
+    .filter(nl => (nl._tri >= 0.015 || nl._big >= 0.08) && nl._kw >= 2)
     .sort((a, b) => (b._tri + b._big) - (a._tri + a._big))
     .slice(0, 2)
     .map(nl => ({ ...nl, puntuacion: Math.round((nl._tri + nl._big) * 100) }));
@@ -632,10 +626,11 @@ export async function analizarNoticiaEstructurada(input) {
       sinRelacion: esClimatech && relacionados.length === 0
     };
   } catch (error) {
-      return {
-        esClimatech: false,
-      titulo: 'Error',
-        resumen: null,
+    // Si la extracción falla, no forzar inserciones ni marcados falsos
+    return {
+      esClimatech: false,
+      titulo: '',
+      resumen: null,
       url: '',
       newslettersRelacionados: [],
       error: error.message || String(error),
@@ -664,21 +659,8 @@ export async function procesarUrlsYPersistir(items = []) {
       const relacionados = Array.isArray(resultado.newslettersRelacionados)
         ? resultado.newslettersRelacionados
         : [];
-      if (relacionados.length === 0) {
-        // Crear Trend sin relación para notificar al usuario
-        try {
-          await trendsSvc.createAsync({
-            id_newsletter: null,
-            Título_del_Trend: resultado.titulo || tituloTrend,
-            Link_del_Trend: url,
-            Nombre_Newsletter_Relacionado: '',
-            Fecha_Relación: new Date().toISOString(),
-            Relacionado: false,
-            Analisis_relacion: 'Trend Climatech sin newsletter relacionado. Considerar crear uno.'
-          });
-        } catch {}
-        continue;
-      }
+      // No crear Trends sin relación automáticamente: reducimos ruido en BDD
+      if (relacionados.length === 0) continue;
 
       for (const nl of relacionados) {
         try {

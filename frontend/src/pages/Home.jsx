@@ -13,6 +13,14 @@ function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const sortByDateDesc = (items) => {
+    const parse = (v) => {
+      const d = v ? new Date(v) : null;
+      return isNaN(d?.getTime?.()) ? 0 : d.getTime();
+    };
+    return [...items].sort((a, b) => parse(b.fechaRelacion) - parse(a.fechaRelacion));
+  };
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user"));
     if (!user) {
@@ -43,7 +51,7 @@ function Home() {
             resumenFama: '',
             autor: '',
           }));
-          setTrends(mapped);
+          setTrends(sortByDateDesc(mapped));
         }
       } catch {}
     })();
@@ -104,15 +112,7 @@ function Home() {
                     resumenFama: data.resumenFama || '',
                     autor: data.autor || '',
                   }))
-                : (baseFilas.length > 0 ? baseFilas : [{
-                    id: 'sin-relacion',
-                    newsletterTitulo: '',
-                    newsletterId: '',
-                    fechaRelacion: '',
-                    trendTitulo: data.titulo || '',
-                    trendLink: data.url || '',
-                    relacionado: false,
-                  }]);
+                : (baseFilas.length > 0 ? baseFilas : []);
 
               return filas;
             } catch {
@@ -125,7 +125,7 @@ function Home() {
           .filter(Boolean)
           .flat();
         if (compactas.length) {
-          setTrends((prev) => [...prev, ...compactas]);
+          setTrends((prev) => sortByDateDesc([...prev, ...compactas]));
         }
       } catch (e) {
         // silencioso para no afectar UI inicial
@@ -138,19 +138,51 @@ function Home() {
     }
   }, [trends.length]);
 
+  // Refresco automático cada 60s desde la BDD (sin dependencias nuevas)
+  useEffect(() => {
+    let isMounted = true;
+    const cargarTrends = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/Trends');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        const mapped = data.map((t, idx) => ({
+          id: t.id ?? idx,
+          newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
+          newsletterId: t.id_newsletter ?? '',
+          fechaRelacion: t.Fecha_Relación || '',
+          trendTitulo: t.Título_del_Trend || '',
+          trendLink: t.Link_del_Trend || '',
+          relacionado: !!t.Relacionado,
+          newsletterLink: '',
+          analisisRelacion: t.Analisis_relacion || '',
+          resumenFama: '',
+          autor: '',
+        }));
+        if (isMounted && mapped.length) {
+          setTrends(mapped);
+        }
+      } catch {}
+    };
+
+    const intervalId = setInterval(cargarTrends, 60 * 1000);
+    return () => { isMounted = false; clearInterval(intervalId); };
+  }, []);
+
   const handleDelete = async (id) =>{
-    setTrends(trends.filter((trend) => trend.id !== id));
-    try {
-      const res = await fetch('http://localhost:3000/trends/${id}', {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setTrends((prev) => prev.filter((t) => t.id !== id));
-      } else {
-        console.error("Error al borrar trend");
+    // Optimista: quitar de UI
+    setTrends((prev) => prev.filter((trend) => trend.id !== id));
+    // Si es un id válido (número), intentar borrar en backend
+    if (id !== undefined && id !== null && !isNaN(Number(id))) {
+      try {
+        const res = await fetch(`http://localhost:3000/api/Trends/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          console.error('Error al borrar trend en backend');
+        }
+      } catch (e) {
+        console.error('Error de conexión:', e);
       }
-    } catch (e) {
-      console.error("Error de conexión:", e);
     }
   };
 
@@ -195,17 +227,9 @@ function Home() {
             resumenFama: data.resumenFama || '',
             autor: data.autor || '',
           }))
-        : (baseFilas.length > 0 ? baseFilas : [{
-            id: 'sin-relacion',
-            newsletterTitulo: '',
-            newsletterId: '',
-            fechaRelacion: '',
-            trendTitulo: data.titulo || '',
-            trendLink: data.url || '',
-            relacionado: false,
-          }]);
+        : (baseFilas.length > 0 ? baseFilas : []);
 
-      setTrends((prev) => [...prev, ...filas]);
+      setTrends((prev) => sortByDateDesc([...prev, ...filas]));
     } catch (e) {
       setError(e.message || 'Error inesperado');
     } finally {
@@ -266,8 +290,9 @@ function Home() {
                 <td style={{ textAlign: 'center' }}>{trend.relacionado ? '✔️' : '✖️'}</td>
                 <td>
                   <button
+                    type="button"
                     className="delete-btn"
-                    onClick={() => handleDelete(trend.id || `${trend.trendTitulo}-${trend.trendLink}`)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(trend.id); }}
                   >
                     🗙
                   </button>

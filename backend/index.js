@@ -51,6 +51,8 @@ app.post('/api/Newsletter/analizar', async (req, res) => {
   }
 });
 
+// SSE deshabilitado para evitar errores; el frontend actualiza por intervalo de 60s
+
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   // Iniciar scheduler que busca noticias y las procesa con el agente automáticamente
