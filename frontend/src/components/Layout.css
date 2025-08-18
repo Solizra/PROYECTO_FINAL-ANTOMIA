@@ -1,0 +1,74 @@
+/* ===== LAYOUT GENERAL ===== */
+.layout {
+    display: flex;
+    height: 100vh; /* que ocupe toda la pantalla */
+    overflow: hidden;
+  }
+  
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: 220px;
+    background-color: #1e1e2f;
+    color: white;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .sidebar h2 {
+    margin-bottom: 20px;
+  }
+  
+  .sidebar nav ul {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .sidebar nav ul li {
+    margin-bottom: 10px;
+  }
+  
+  .sidebar nav ul li a {
+    text-decoration: none;
+    color: white;
+    font-weight: 500;
+  }
+  
+  .sidebar nav ul li.active a {
+    color: #4cafef; /* resalta el link activo */
+  }
+  
+  /* ===== BOTÓN DE LOGOUT ===== */
+  .logout-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+  }
+  
+  .logout-btn:hover {
+    background: #c0392b;
+  }
+  
+  /* ===== CONTENIDO PRINCIPAL ===== */
+  .content {
+    flex: 1;
+   
+    background-color: #f5f6fa;
+    overflow-y: auto;
+    flex: 1;
+   
+    background-color: #f5f6fa;
+    overflow-y: auto;   /* mantiene el scroll funcional */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  
+  .content::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }

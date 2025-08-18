@@ -1,7 +1,9 @@
+import "./publicaciones.css"
+
 function Publicaciones() {
   return (
-    <div>
-      <h1>Publicaciones</h1>
+    <div className="publicaciones">
+      <h1>Publicaciones proximamente...</h1>
     </div>
   );
 }

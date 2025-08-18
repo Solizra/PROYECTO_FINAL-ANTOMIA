@@ -189,26 +189,6 @@ function Home() {
 
   return (
     <div className="home-container">
-      <aside className="sidebar">
-        <h2>AntomIA</h2>
-        <nav>
-          <ul>
-            <li className={location.pathname === "/Home" ? "active" : ""}>
-              <Link to="/Home">Trends</Link>
-            </li>
-            <li
-              className={location.pathname === "/publicaciones" ? "active" : ""}
-            >
-              <Link to="/publicaciones">Publicaciones</Link>
-            </li>
-          </ul>
-        </nav>
-
-        <button className="logout-btn" onClick={handleLogout}>
-          <LogOut size={18} style={{ marginRight: "8px" }} />
-          Cerrar sesión
-        </button>
-      </aside>
 
       <main className="main-content">
         <h1 className="main-title">Últimos trends reconocidos</h1>
