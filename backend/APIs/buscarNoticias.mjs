@@ -2,6 +2,8 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
 import cron from 'node-cron';
+import { analizarNoticiaEstructurada } from '../Agent/main.js';
+import TrendsService from '../Services/Trends-services.js';
 
 // 🔐 Pegá tu clave acá
 const API_KEY = '5cd26781b7d64a329de50c8899fc5eaa'; // 👈 reemplazar
@@ -119,19 +121,79 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
     fs.writeFileSync('noticias.json', JSON.stringify(articles, null, 2));
     console.log('✅ Noticias guardadas en "noticias.json"');
     console.log(`🕐 [${new Date().toLocaleString()}] Búsqueda completada exitosamente\n`);
+
+    return articles;
   } catch (error) {
     console.error('❌ Error durante la búsqueda de noticias:', error);
+    return [];
   }
   
 }
 
+// Procesar con el AGENTE y persistir en Trends
+async function procesarArticulosConAgente(articles = []) {
+  if (!Array.isArray(articles) || articles.length === 0) return;
+
+  const trendsSvc = new TrendsService();
+
+  for (const articulo of articles) {
+    const url = articulo?.url;
+    const tituloTrend = articulo?.title || articulo?.titulo || 'Sin título';
+    if (!url) continue;
+
+    try {
+      console.log(`🤖 Analizando con agente: ${url}`);
+      const resultado = await analizarNoticiaEstructurada(url);
+
+      if (!resultado?.esClimatech) {
+        console.log('⏭️ No es Climatech, se omite guardado en Trends');
+        continue;
+      }
+
+      const relacionados = Array.isArray(resultado.newslettersRelacionados)
+        ? resultado.newslettersRelacionados
+        : [];
+
+      if (relacionados.length === 0) {
+        console.log('ℹ️ Es Climatech pero sin newsletters relacionados; no se crea Trend');
+        continue;
+      }
+
+      for (const nl of relacionados) {
+        try {
+          const payload = {
+            id_newsletter: nl.id ?? null,
+            Título_del_Trend: resultado.titulo || tituloTrend,
+            Link_del_Trend: url,
+            Nombre_Newsletter_Relacionado: nl.titulo || '',
+            Fecha_Relación: nl.fechaRelacion || new Date().toISOString(),
+            Relacionado: true,
+            Analisis_relacion: nl.analisisRelacion || ''
+          };
+          const created = await trendsSvc.createAsync(payload);
+          console.log(`💾 Trend creado id=${created?.id} para URL ${url}`);
+        } catch (e) {
+          console.error('❌ Error creando Trend:', e?.message || e);
+        }
+      }
+    } catch (e) {
+      console.error('❌ Error analizando artículo con agente:', e?.message || e);
+    }
+  }
+}
+
+// Helper: buscar y procesar en una sola llamada
+async function buscarYProcesarNoticias(maxResults = 5) {
+  const articles = await buscarNoticias(maxResults);
+  await procesarArticulosConAgente(articles);
+}
 
 // Función para iniciar la programación automática
 function iniciarProgramacionAutomatica() {
   console.log('🚀 Iniciando programación automática de búsqueda de noticias...');
   
   // Ejecutar inmediatamente al iniciar con valor por defecto
-  buscarNoticias();
+  buscarYProcesarNoticias();
   
   // Programar ejecución cada 30 minutos (puedes cambiar este intervalo)
   // Formato cron: '*/30 * * * *' = cada 30 minutos
@@ -141,10 +203,10 @@ function iniciarProgramacionAutomatica() {
   // '0 9 * * *' = todos los días a las 9:00 AM
   // '0 9,18 * * *' = todos los días a las 9:00 AM y 6:00 PM
   
-  const cronExpression = '*/30 * * * *'; // Cada 30 minutos
+  const cronExpression = '*/3 * * * *'; // Cada 3 minutos
   
   cron.schedule(cronExpression, () => {
-    buscarNoticias(); // usa el valor por defecto o ajusta si querés otro límite
+    buscarYProcesarNoticias(); // usa el valor por defecto o ajusta si querés otro límite
   }, {
     scheduled: true,
     timezone: "America/Argentina/Buenos_Aires" // Ajusta a tu zona horaria
@@ -156,11 +218,11 @@ function iniciarProgramacionAutomatica() {
 
 // Función para ejecutar una sola vez (comportamiento original)
 function ejecutarUnaVez(maxResults) {
-  buscarNoticias(maxResults);
+  buscarYProcesarNoticias(maxResults);
 }
 
 // Exportar funciones para uso externo
-export { buscarNoticias, iniciarProgramacionAutomatica, ejecutarUnaVez };
+export { buscarNoticias, iniciarProgramacionAutomatica, ejecutarUnaVez, buscarYProcesarNoticias, procesarArticulosConAgente };
 
 // Si se ejecuta directamente este archivo, iniciar la programación automática
 if (process.argv[1] && process.argv[1].includes('buscarNoticias.mjs')) {
