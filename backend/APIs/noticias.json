@@ -1,67 +1,14 @@
 [
   {
-    "source": {
-      "id": "la-nacion",
-      "name": "La Nacion"
-    },
-    "author": "Pilar Vazquez",
-    "title": "“La figurita que faltaba”: compraron una empresa de inteligencia artificial y sumaron una tecnología clave para cumplir una exigencia europea",
-    "description": "Puma adquirió ILabs, que usa inteligencia artificial aplicada a imágenes satelitales, y podrá verificar si una producción proviene de áreas libres de deforestación",
-    "url": "https://www.lanacion.com.ar/economia/campo/la-figurita-que-faltaba-compraron-una-empresa-de-inteligencia-artificial-y-sumaron-una-tecnologia-nid14082025/",
-    "urlToImage": "https://resizer.glanacion.com/resizer/v2/deben-fijarse-pautas-para-el-aprovechamiento-del-KYR7UMVUEVB7NB54SVMK2E2MH4.jpg?auth=eece4e5284502249d44b5215ef7988ce928ca642b5b291d6c9a0044ef8f40709&width=1200&quality=70&smart=false&height=800",
-    "publishedAt": "2025-08-14T21:59:57Z",
-    "content": "Es la figurita que nos faltaba. María Inés Di Nápoli, fundadora de la plataforma Puma, lo dice al explicar por qué la compañía decidió adquirir ILabs, una startup argentina de inteligencia artificial… [+4544 chars]"
+    "title": "El Hospital de Viladecans reduce en un 90% las emisiones derivadas de anestésicos",
+    "url": "https://www.elperiodico.com/es/barcelona/20250814/hospital-viladecans-reduce-90-por-ciento-emisiones-derivadas-anestesicos-120618658",
+    "publishedAt": "2025-08-14T09:24:18Z",
+    "source": "Elperiodico.com"
   },
   {
-    "source": {
-      "id": null,
-      "name": "BBC News"
-    },
-    "author": "https://www.facebook.com/bbcnews",
-    "title": "Qué se sabe sobre la investigación del asesinato del senador Miguel Uribe Turbay en Colombia",
-    "description": "Tras la muerte de Miguel Uribe Turbay, ahora la Fiscalía de Colombia investiga el caso como magnicidio, lo que implica posibles penas más duras para los implicados.",
-    "url": "https://www.bbc.com/mundo/articles/cz6002j678do",
-    "urlToImage": "https://ichef.bbci.co.uk/news/1024/branded_mundo/0faf/live/53876430-76dc-11f0-841b-3d31b3a72b3a.jpg",
-    "publishedAt": "2025-08-11T17:57:04Z",
-    "content": "Fuente de la imagen, Getty Images\r\nPie de foto, Miguel Uribe Turbay fue baleado en un acto público en Bogotá el pasado 7 de junio.\r\nInformación del artículo<ul><li><ul><li>Autor, José Carlos Cueto</l… [+8687 chars]"
-  },
-  {
-    "source": {
-      "id": null,
-      "name": "BBC News"
-    },
-    "author": "https://www.facebook.com/bbcnews",
-    "title": "Paulina Porizkova, la supermodelo que de niña fue el rostro de una causa política y ahora sorprende apareciendo sin filtro",
-    "description": "De la niñez bajo un régimen comunista a la cima de la moda… y luego, a pelear por un lugar en la industria que la hizo famosa.",
-    "url": "https://www.bbc.com/mundo/articles/cpwyzg8wkq0o",
-    "urlToImage": "https://ichef.bbci.co.uk/news/1024/branded_mundo/6149/live/ab094700-76dc-11f0-a975-cb151ca452f4.jpg",
-    "publishedAt": "2025-08-16T14:21:35Z",
-    "content": "Fuente de la imagen, Getty Images\r\nPie de foto, La supermodelo posó para innumerables revistas y desfiló en las pasarelas de más prestigiosas del mundo. Pero su vida ante la cámara comenzó lejos del … [+16738 chars]"
-  },
-  {
-    "source": {
-      "id": "la-nacion",
-      "name": "La Nacion"
-    },
-    "author": "Melisa Reinhold",
-    "title": "La importancia del talento: desde el incordio de contratar hasta el saber delegar en un emprendimiento",
-    "description": "En el sexto capítulo del ciclo audiovisual Manual de Emprendedores, se abordó qué tener en cuenta a la hora de contratar a un primer empleado, los trámites infaltables y cómo retener al equipo de trabajo",
-    "url": "https://www.lanacion.com.ar/economia/negocios/la-importancia-del-talento-desde-el-incordio-de-contratar-hasta-el-saber-delegar-en-un-nid14082025/",
-    "urlToImage": "https://resizer.glanacion.com/resizer/v2/mde-cap-ANX7A4RTLBEDDIGQRRGRSWFVGU.jpg?auth=8b3fe71d7d99f16d0cd3c5e0b87b6cec74c1ebb093361e71c3b1815b09995518&width=1200&quality=70&smart=false&height=800",
-    "publishedAt": "2025-08-14T19:28:22Z",
-    "content": "Finanzas, marketing, atención al cliente, entrega de pedidos. Los emprendedores que recién arrancan suelen hacer multitaskingy cumplir todos los roles del negocio solos. Pero a medida que la empresa … [+6638 chars]"
-  },
-  {
-    "source": {
-      "id": null,
-      "name": "BBC News"
-    },
-    "author": "https://www.facebook.com/bbcnews",
-    "title": "Por qué el gobierno de EE.UU. se quedará con parte de los ingresos de Nvidia, la empresa con el mayor valor de mercado del mundo",
-    "description": "Dos gigantes tecnológicos mundiales -Nvidia y AMD- le van a pagar al gobierno estadounidense el 15% de sus ingresos por la venta de ciertos chips avanzados en China.",
-    "url": "https://www.bbc.com/mundo/articles/cn722pdvy12o",
-    "urlToImage": "https://ichef.bbci.co.uk/news/1024/branded_mundo/1099/live/51472c70-76c1-11f0-8a14-9d11d87490b5.jpg",
-    "publishedAt": "2025-08-11T17:33:00Z",
-    "content": "Fuente de la imagen, Getty Images\r\nPie de foto, El jefe de Nvidia, Jensen Huang, ha estado presionando a la Casa Blanca sobre las ventas de chips a China.\r\nInformación del artículo<ul><li><ul><li>Aut… [+7048 chars]"
+    "title": "Puente tacha de \"sinvergüenzas\" a Mañueco y a su consejero de Medio Ambiente por estar \"de farra\" durante los incendios de Castilla y León",
+    "url": "https://www.elperiodico.com/es/politica/20250811/puente-tacha-sinverguenzas-manueco-incendio-leon-120546339",
+    "publishedAt": "2025-08-11T20:33:11Z",
+    "source": "Elperiodico.com"
   }
 ]
