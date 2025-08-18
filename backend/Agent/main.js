@@ -329,7 +329,7 @@ async function obtenerNewslettersBDD() {
 }
 
 // Función para comparar noticia con newsletters usando similitud de texto
-function compararConNewslettersLocal(resumenNoticia, newsletters) {
+function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '') {
   try {
     console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters (análisis local mejorado)...`);
     
@@ -345,6 +345,9 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
     const tagsResumen = extractThematicTags(resumenNoticia);
     const entitiesResumen = extractNamedEntities(resumenNoticia);
 
+    const getHost = (u) => { try { return (new URL(u)).hostname.replace(/^www\./,'').toLowerCase(); } catch { return ''; } };
+    const hostNoticia = getHost(urlNoticia);
+
     // Palabras clave del resumen (top 10 por frecuencia)
     const topKeywords = [...tfResumen.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -354,6 +357,13 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
 
     const newslettersScored = newsletters.map((newsletter) => {
       const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
+      const linkDoc = newsletter.link || newsletter.url || '';
+      const isExactUrlMatch = linkDoc && urlNoticia && (linkDoc === urlNoticia);
+      const sameHost = hostNoticia && linkDoc && (getHost(linkDoc) === hostNoticia);
+
+      if (isExactUrlMatch) {
+        return { ...newsletter, _score: 1, _matchesTop: 10, _tagOverlap: 1, _triJacc: 1, _bigJacc: 1, _cos: 1, _entityOverlapCount: 3, _forced: true };
+      }
       const tokensDoc = tokenize(textoDoc);
       const tfDoc = buildTermFreq(tokensDoc);
       const cos = cosineSimilarity(tfResumen, tfDoc);
@@ -372,22 +382,25 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
         if (topKeywordSet.has(t)) matchesTop++;
       }
 
-      // Score combinado más estricto: énfasis en n-gramas y similitud, tags aportan menos
-      const score = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
+      // Score combinado más estricto: énfasis en n-gramas y similitud, boost si mismo dominio
+      const baseScore = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
+      const score = sameHost ? Math.min(baseScore + 0.12, 1) : baseScore;
 
       // Guardar detalles de coincidencias
       const matchedTopArr = topKeywords.filter(t => tokensDoc.includes(t));
       const matchedTagsArr = [...tagsResumen].filter(t => extractThematicTags(textoDoc).has(t));
 
-      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr };
+      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr, _sameHost: sameHost };
     })
-    // Gating más estricto: requiere coincidencias sustanciales
+    // Gating: acepta forzados por URL exacta; si mismo dominio, umbrales levemente más flexibles
     .filter(nl => (
-      nl._score >= 0.18 && // score mínimo más alto
-      nl._matchesTop >= 3 && // al menos 3 keywords principales
-      (nl._bigJacc >= 0.08 || nl._triJacc >= 0.03) && // superposición de n-gramas
-      nl._tagOverlap >= 0.25 && // temas consistentes
-      nl._entityOverlapCount >= 1 // al menos una entidad nombrada en común
+      nl._forced === true || (
+        (nl._sameHost ? nl._score >= 0.16 : nl._score >= 0.18) &&
+        nl._matchesTop >= 3 &&
+        (nl._bigJacc >= 0.08 || nl._triJacc >= 0.03) &&
+        nl._tagOverlap >= 0.25 &&
+        nl._entityOverlapCount >= 1
+      )
     ))
     .sort((a, b) => b._score - a._score)
     .slice(0, 3)
@@ -556,7 +569,7 @@ export async function analizarNoticiaEstructurada(input) {
     let relacionados = [];
     if (esClimatech) {
       newsletters = await obtenerNewslettersBDD();
-      relacionados = compararConNewslettersLocal(resumen, newsletters);
+      relacionados = compararConNewslettersLocal(resumen, newsletters, url);
     }
 
     const fechaRelacion = new Date().toISOString();
