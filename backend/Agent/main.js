@@ -9,6 +9,8 @@ import TrendsService from '../Services/Trends-services.js';
 const DEBUG = false;
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
+// (eliminado) extractFirstUrl: no se usa
+
 // Palabras clave para detectar Climatech
 const CLIMATECH_KEYWORDS = [
   // Energías renovables
@@ -502,14 +504,15 @@ async function analizarNoticia(input) {
   
   try {
     let contenido, titulo;
+    const cleaned = (typeof input === 'string') ? input.trim().replace(/^[@\s]+/, '') : input;
     
     // PASO 1: Extraer contenido desde URL o usar texto directo
-    if (input.startsWith('http')) {
-      const resultadoExtraccion = await extraerContenidoNoticia(input);
+    if (typeof cleaned === 'string' && cleaned.startsWith('http')) {
+      const resultadoExtraccion = await extraerContenidoNoticia(cleaned);
         contenido = resultadoExtraccion.contenido;
         titulo = resultadoExtraccion.titulo;
     } else {
-      contenido = input;
+      contenido = cleaned;
       titulo = 'Texto proporcionado';
       }
 
@@ -571,16 +574,17 @@ export async function analizarNoticiaEstructurada(input) {
     let sitio = '';
     let autor = '';
     let fechaPublicacion = '';
-    if (input.startsWith('http')) {
-      const resultadoExtraccion = await extraerContenidoNoticia(input);
+    const cleaned = (typeof input === 'string') ? input.trim().replace(/^[@\s]+/, '') : input;
+    if (typeof cleaned === 'string' && cleaned.startsWith('http')) {
+      const resultadoExtraccion = await extraerContenidoNoticia(cleaned);
       contenido = resultadoExtraccion.contenido;
       titulo = resultadoExtraccion.titulo;
-      url = input;
+      url = cleaned;
       sitio = resultadoExtraccion.sitio || '';
       autor = resultadoExtraccion.autor || '';
       fechaPublicacion = resultadoExtraccion.fechaPublicacion || '';
     } else {
-      contenido = input;
+      contenido = cleaned;
       titulo = 'Texto proporcionado';
     }
 
