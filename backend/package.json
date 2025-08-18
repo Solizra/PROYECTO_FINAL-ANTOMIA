@@ -15,6 +15,7 @@
     "express": "^5.1.0",
     "llamaindex": "^0.10.6",
     "node-fetch": "^3.3.2",
+    "node-cron": "^3.0.3",
     "pg": "^8.16.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

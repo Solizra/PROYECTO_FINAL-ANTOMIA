@@ -84,7 +84,7 @@ function Home() {
             relacionado: false,
           }]);
 
-      setTrends(filas);
+      setTrends((prev) => [...prev, ...filas]);
     } catch (e) {
       setError(e.message || 'Error inesperado');
     } finally {

@@ -4,6 +4,7 @@ import cors from "cors";
 import NewsletterRouter from './Controllers/Newsletter-controller.js'
 import TrendsRouter from './Controllers/Trends-controller.js'
 import { analizarNoticiaEstructurada } from './Agent/main.js';
+import { iniciarProgramacionAutomatica } from './APIs/buscarNoticias.mjs';
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -31,4 +32,10 @@ app.post('/api/Newsletter/analizar', async (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+  // Iniciar scheduler que busca noticias y las procesa con el agente automáticamente
+  try {
+    iniciarProgramacionAutomatica();
+  } catch (e) {
+    console.error('Error iniciando la programación automática:', e);
+  }
 });
