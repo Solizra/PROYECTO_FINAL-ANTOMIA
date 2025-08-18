@@ -21,8 +21,33 @@ function Home() {
     }
     const saved = localStorage.getItem('trends');
     if (saved) {
-      try { setTrends(JSON.parse(saved)); } catch {}
+      try { setTrends(JSON.parse(saved)); return; } catch {}
     }
+
+    // Si no hay datos en localStorage, cargar los Trends guardados en BDD
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/Trends');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((t, idx) => ({
+            id: t.id ?? idx,
+            newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
+            newsletterId: t.id_newsletter ?? '',
+            fechaRelacion: t.Fecha_Relación || '',
+            trendTitulo: t.Título_del_Trend || '',
+            trendLink: t.Link_del_Trend || '',
+            relacionado: !!t.Relacionado,
+            newsletterLink: '',
+            analisisRelacion: t.Analisis_relacion || '',
+            resumenFama: '',
+            autor: '',
+          }));
+          setTrends(mapped);
+        }
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {

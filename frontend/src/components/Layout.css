@@ -41,9 +41,8 @@
   
   /* ===== BOTÓN DE LOGOUT ===== */
   .logout-btn {
-    background: #e74c3c;
+    border: 3px solid #5cf4ff77;
     color: white;
-    border: none;
     padding: 10px 15px;
     border-radius: 6px;
     cursor: pointer;
@@ -52,7 +51,8 @@
   }
   
   .logout-btn:hover {
-    background: #c0392b;
+    background: #06767e;
+    color: white;
   }
   
   /* ===== CONTENIDO PRINCIPAL ===== */
