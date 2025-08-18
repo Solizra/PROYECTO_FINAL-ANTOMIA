@@ -29,6 +29,91 @@ function Home() {
     localStorage.setItem('trends', JSON.stringify(trends));
   }, [trends]);
 
+  // Carga automática: toma URLs guardadas por el backend y las analiza para poblar la tabla
+  useEffect(() => {
+    const cargarUltimasNoticias = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/news/latest');
+        if (!res.ok) return;
+        const urls = await res.json();
+        if (!Array.isArray(urls) || urls.length === 0) return;
+
+        // Limitar cantidad inicial para no saturar
+        const primeros = urls.slice(0, 5);
+
+        const resultados = await Promise.all(
+          primeros.map(async (item) => {
+            try {
+              const r = await fetch('http://localhost:3000/api/Newsletter/analizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: item.url })
+              });
+              const data = await r.json().catch(() => null);
+              if (!r.ok || !data) return null;
+
+              const baseFilas = (data.newslettersRelacionados || []).map((nl, idx) => ({
+                id: nl.id ?? idx,
+                newsletterTitulo: nl.titulo || '',
+                newsletterId: nl.id ?? '',
+                fechaRelacion: nl.fechaRelacion || new Date().toISOString(),
+                trendTitulo: data.titulo || '',
+                trendLink: data.url || '',
+                relacionado: true,
+                newsletterLink: nl.link || '',
+                analisisRelacion: nl.analisisRelacion || '',
+                resumenFama: data.resumenFama || '',
+                autor: data.autor || '',
+              }));
+
+              const filas = (data.inserts && data.inserts.length > 0)
+                ? data.inserts.map((ins, idx) => ({
+                    id: ins.id ?? idx,
+                    newsletterTitulo: ins.Nombre_Newsletter_Relacionado || '',
+                    newsletterId: ins.id_newsletter ?? '',
+                    fechaRelacion: ins.Fecha_Relación || new Date().toISOString(),
+                    trendTitulo: ins.Título_del_Trend || data.titulo || '',
+                    trendLink: ins.Link_del_Trend || data.url || '',
+                    relacionado: !!ins.Relacionado,
+                    newsletterLink: ins.newsletterLink || '',
+                    analisisRelacion: '',
+                    resumenFama: data.resumenFama || '',
+                    autor: data.autor || '',
+                  }))
+                : (baseFilas.length > 0 ? baseFilas : [{
+                    id: 'sin-relacion',
+                    newsletterTitulo: '',
+                    newsletterId: '',
+                    fechaRelacion: '',
+                    trendTitulo: data.titulo || '',
+                    trendLink: data.url || '',
+                    relacionado: false,
+                  }]);
+
+              return filas;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        const compactas = resultados
+          .filter(Boolean)
+          .flat();
+        if (compactas.length) {
+          setTrends((prev) => [...prev, ...compactas]);
+        }
+      } catch (e) {
+        // silencioso para no afectar UI inicial
+      }
+    };
+
+    // Solo si aún no hay tendencias cargadas en memoria
+    if (trends.length === 0) {
+      cargarUltimasNoticias();
+    }
+  }, [trends.length]);
+
   const handleDelete = (id) => {
     setTrends(trends.filter((trend) => trend.id !== id));
   };
