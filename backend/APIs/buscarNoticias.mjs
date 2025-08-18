@@ -13,17 +13,36 @@ function restarDias(fecha, dias) {
   return nuevaFecha;
 }
 
-// 🔍 Término que querés buscar
-const query = 'AI OR climatech OR "inteligencia artificial" OR chatGPT OR MetaAI OR Antom.la';
+// 🔍 Término que querés buscar (enfocado en Climatech y energía/sostenibilidad, con exclusiones)
+const query = `(
+ 'climatech')`;
+
+// 📰 Medios confiables (dominios) para restringir resultados
+const trustedDomains = [
+  'elpais.com',
+  'bbc.com',
+  'pagina12.com.ar',
+  'elcronista.com',
+  'elperiodico.com',
+  'lanacion.com.ar',
+  'clarin.com',
+  'nationalgeographic.com',
+  'eltiempo.com',
+];
 const fromDate = restarDias(fechaActual, 7); //resta 7 dias a la fecha actual
 const sortBy = 'relevancy';
 const language = 'es';
 
 //NLP (categorizar por lenguaje natural)
 const categorias = {
-  inversion: ['financiación', 'inversión', 'capital', 'funding', 'venture', 'startup'],
-  innovacion: ['nuevo', 'innovación', 'desarrollo', 'patente', 'tecnología', 'avance'],
-  legislacion: ['ley', 'decreto', 'regulación', 'normativa', 'gobierno', 'política']
+  ia: ['ia', 'inteligencia artificial', 'ai', 'machine learning', 'aprendizaje automático'],
+  agua: ['agua', 'hídrica', 'hidrica', 'hídrico', 'hidrico', 'water', 'recurso hídrico'],
+  energia: ['energía', 'energia', 'renovable', 'renovables', 'energías renovables', 'solar', 'eólica', 'hidroeléctrica', 'hidroelectrica', 'geotérmica', 'geotermica'],
+  carbono: ['carbono', 'co2', 'captura de carbono', 'secuestro de carbono', 'emisiones', 'neutralidad de carbono'],
+  movilidad: ['vehículo eléctrico', 'vehiculos eléctricos', 'coche eléctrico', 'movilidad sostenible', 'transporte limpio'],
+  agricultura: ['agricultura sostenible', 'agricultura regenerativa', 'permacultura', 'cultivo orgánico', 'agtech'],
+  biodiversidad: ['biodiversidad', 'créditos de biodiversidad', 'conservación', 'conservacion'],
+  hidrogeno: ['hidrógeno', 'hidrogeno', 'h2', 'hidrógeno verde', 'hidrogeno verde'],
 };
 
 function categorizarNoticia(texto) {
@@ -50,7 +69,9 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
     console.log(`🕐 [${new Date().toLocaleString()}] Iniciando búsqueda de noticias... (máx: ${pageSize})`);
     
     const url = `https://newsapi.org/v2/everything?` +
-      `qInTitle=${encodeURIComponent(query)}` +
+      `q=${encodeURIComponent(query.replace(/\s+/g, ' '))}` +
+      `&searchIn=title,description` +
+      `&domains=${encodeURIComponent(trustedDomains.join(','))}` +
       `&from=${fromDateISO}` +
       `&language=${language}` +
       `&sortBy=${sortBy}` +
@@ -66,7 +87,20 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
       return;
     }
 
-    const articles = (data.articles || []).slice(0, pageSize);
+
+    // Filtrado adicional por dominio confiable (por si el API retorna algo fuera de la lista)
+    const articles = (data.articles || [])
+      .filter(a => {
+        try {
+          const urlObj = new URL(a.url || '');
+          return trustedDomains.some(d => urlObj.hostname.includes(d));
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, pageSize);
+
+      
 
     console.log(`📰 Últimas noticias sobre "${query}":\n`);
 
@@ -88,7 +122,9 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
   } catch (error) {
     console.error('❌ Error durante la búsqueda de noticias:', error);
   }
+  
 }
+
 
 // Función para iniciar la programación automática
 function iniciarProgramacionAutomatica() {
