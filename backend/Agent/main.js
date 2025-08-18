@@ -7,7 +7,6 @@ import TrendsService from '../Services/Trends-services.js';
 
 // Configuración
 const DEBUG = false;
-
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // Palabras clave para detectar Climatech
@@ -96,6 +95,14 @@ function bigrams(tokens) {
   return res;
 }
 
+function trigrams(tokens) {
+  const res = [];
+  for (let i = 0; i < tokens.length - 2; i++) {
+    res.push(tokens[i] + ' ' + tokens[i + 1] + ' ' + tokens[i + 2]);
+  }
+  return res;
+}
+
 function jaccard(setA, setB) {
   const inter = new Set([...setA].filter(x => setB.has(x))).size;
   const uni = new Set([...setA, ...setB]).size;
@@ -173,6 +180,22 @@ function extractThematicTags(text) {
     }
   }
   return tags;
+}
+
+// Extracción muy simple de entidades nombradas (secuencias de palabras capitalizadas)
+function extractNamedEntities(text) {
+  try {
+    const entities = new Set();
+    const regex = /(?:\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,3})/g;
+    const matches = String(text || '').match(regex) || [];
+    for (const m of matches) {
+      const clean = m.trim();
+      if (clean.length >= 3 && !/^El|La|Los|Las|Un|Una|Y|De|Del|Al$/.test(clean)) entities.add(clean);
+    }
+    return entities;
+  } catch {
+    return new Set();
+  }
 }
 
 // Función para extraer contenido de noticias desde URLs
@@ -317,8 +340,10 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
 
     const tokensResumen = tokenize(resumenNoticia);
     const bigramResumen = bigrams(tokensResumen);
+    const trigramResumen = trigrams(tokensResumen);
     const tfResumen = buildTermFreq(tokensResumen);
     const tagsResumen = extractThematicTags(resumenNoticia);
+    const entitiesResumen = extractNamedEntities(resumenNoticia);
 
     // Palabras clave del resumen (top 10 por frecuencia)
     const topKeywords = [...tfResumen.entries()]
@@ -334,8 +359,12 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
       const cos = cosineSimilarity(tfResumen, tfDoc);
       const bigramDoc = bigrams(tokensDoc);
       const bigJacc = jaccard(new Set(bigramResumen), new Set(bigramDoc));
+      const trigramDoc = trigrams(tokensDoc);
+      const triJacc = jaccard(new Set(trigramResumen), new Set(trigramDoc));
       const tagsDoc = extractThematicTags(textoDoc);
       const tagOverlap = jaccard(tagsResumen, tagsDoc);
+      const entitiesDoc = extractNamedEntities(textoDoc);
+      const entityOverlapCount = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
 
       // Coincidencias mínimas de palabras clave principales
       let matchesTop = 0;
@@ -343,17 +372,23 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
         if (topKeywordSet.has(t)) matchesTop++;
       }
 
-      // Score combinado con pesos (menos estricto, considerando tags)
-      const score = 0.5 * cos + 0.25 * bigJacc + 0.25 * Math.min(tagOverlap * 3, 1);
+      // Score combinado más estricto: énfasis en n-gramas y similitud, tags aportan menos
+      const score = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
 
       // Guardar detalles de coincidencias
       const matchedTopArr = topKeywords.filter(t => tokensDoc.includes(t));
       const matchedTagsArr = [...tagsResumen].filter(t => extractThematicTags(textoDoc).has(t));
 
-      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr };
+      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr };
     })
-    // Filtro de gating más flexible: si comparten al menos 2 keywords top o 1 tag y score razonable
-    .filter(nl => (nl._matchesTop >= 2 || nl._tagOverlap >= 0.25) && nl._score >= 0.08)
+    // Gating más estricto: requiere coincidencias sustanciales
+    .filter(nl => (
+      nl._score >= 0.18 && // score mínimo más alto
+      nl._matchesTop >= 3 && // al menos 3 keywords principales
+      (nl._bigJacc >= 0.08 || nl._triJacc >= 0.03) && // superposición de n-gramas
+      nl._tagOverlap >= 0.25 && // temas consistentes
+      nl._entityOverlapCount >= 1 // al menos una entidad nombrada en común
+    ))
     .sort((a, b) => b._score - a._score)
     .slice(0, 3)
     .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
@@ -361,25 +396,24 @@ function compararConNewslettersLocal(resumenNoticia, newsletters) {
     console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados)`);
     if (newslettersScored.length > 0) return newslettersScored;
 
-    // Fallback menos estricto si no hay resultados: filtrar por intersección de tags o coincidencia de 2 keywords simples
+    // Fallback MUY conservador: requiere trigram o 2 bigramas y 3 keywords
     const fallback = newsletters.map((newsletter) => {
       const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
-      const tagsDoc = extractThematicTags(textoDoc);
-      const overlapCount = [...tagsResumen].filter(t => tagsDoc.has(t)).length;
       const tokensDoc = tokenize(textoDoc);
-      let simpleMatches = 0;
-      for (const kw of topKeywords) {
-        if (tokensDoc.includes(kw)) simpleMatches++;
-      }
-      const simpleScore = overlapCount * 2 + simpleMatches;
-      return { ...newsletter, _fallback: simpleScore };
+      const tri = jaccard(new Set(trigramResumen), new Set(trigrams(tokensDoc)));
+      const big = jaccard(new Set(bigramResumen), new Set(bigrams(tokensDoc)));
+      let kw = 0;
+      for (const kwd of topKeywords) { if (tokensDoc.includes(kwd)) kw++; }
+      const entitiesDoc = extractNamedEntities(textoDoc);
+      const entitiesOverlap = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
+      return { ...newsletter, _tri: tri, _big: big, _kw: kw, _ent: entitiesOverlap };
     })
-    .filter(nl => nl._fallback >= 2)
-    .sort((a, b) => b._fallback - a._fallback)
-    .slice(0, 3)
-    .map(nl => ({ ...nl, puntuacion: nl._fallback * 10 }));
+    .filter(nl => (nl._tri >= 0.02 || nl._big >= 0.12) && nl._kw >= 3 && nl._ent >= 1)
+    .sort((a, b) => (b._tri + b._big) - (a._tri + a._big))
+    .slice(0, 2)
+    .map(nl => ({ ...nl, puntuacion: Math.round((nl._tri + nl._big) * 100) }));
 
-    console.log(`ℹ️ Fallback: ${fallback.length} newsletters por coincidencia simple`);
+    console.log(`ℹ️ Fallback estricto: ${fallback.length} newsletters`);
     return fallback;
   } catch (error) {
     console.error(`❌ Error comparando newsletters: ${error.message}`);
@@ -557,6 +591,7 @@ export async function analizarNoticiaEstructurada(input) {
           return partes.length ? partes.join(' | ') : 'Relacionados por similitud de contenido.';
         })()
       })),
+      sinRelacion: esClimatech && relacionados.length === 0
     };
   } catch (error) {
       return {
@@ -591,7 +626,21 @@ export async function procesarUrlsYPersistir(items = []) {
       const relacionados = Array.isArray(resultado.newslettersRelacionados)
         ? resultado.newslettersRelacionados
         : [];
-      if (relacionados.length === 0) continue;
+      if (relacionados.length === 0) {
+        // Crear Trend sin relación para notificar al usuario
+        try {
+          await trendsSvc.createAsync({
+            id_newsletter: null,
+            Título_del_Trend: resultado.titulo || tituloTrend,
+            Link_del_Trend: url,
+            Nombre_Newsletter_Relacionado: '',
+            Fecha_Relación: new Date().toISOString(),
+            Relacionado: false,
+            Analisis_relacion: 'Trend Climatech sin newsletter relacionado. Considerar crear uno.'
+          });
+        } catch {}
+        continue;
+      }
 
       for (const nl of relacionados) {
         try {
