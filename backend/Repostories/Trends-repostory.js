@@ -79,6 +79,23 @@ export default class TrendsRepository {
       await client.end();
     }
   }
+
+  async deleteAsync(id) {
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const sql = `DELETE FROM "Trends" WHERE "id" = $1 RETURNING "id";`;
+      const result = await client.query(sql, [id]);
+      return result.rowCount > 0; // true si se borró, false si no existía
+    } catch (err) {
+      console.error('Error eliminando Trend:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  }
+  
+  
 }
 
 
