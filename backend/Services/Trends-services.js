@@ -17,6 +17,12 @@ export default class TrendsService {
     const { page = 1, limit = 20 } = query;
     return await this.repo.listAsync({ page, limit });
   }
+
+  async deleteAsync(id) {
+    return await this.repo.deleteAsync(id);
+  }
+  
+  
 }
 
 

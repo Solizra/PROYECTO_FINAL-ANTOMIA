@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Home.css";
 import { supabase } from "../supabaseClient";
-import { LogOut } from "lucide-react";
 
 function Home() {
   const ojo= "https://cdn-icons-png.freepik.com/512/3722/3722014.png";
@@ -139,8 +138,20 @@ function Home() {
     }
   }, [trends.length]);
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) =>{
     setTrends(trends.filter((trend) => trend.id !== id));
+    try {
+      const res = await fetch('http://localhost:3000/trends/${id}', {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setTrends((prev) => prev.filter((t) => t.id !== id));
+      } else {
+        console.error("Error al borrar trend");
+      }
+    } catch (e) {
+      console.error("Error de conexión:", e);
+    }
   };
 
   const analizar = async () => {
