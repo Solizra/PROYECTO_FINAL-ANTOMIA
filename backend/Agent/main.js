@@ -154,7 +154,7 @@ function generarAnalisisRelacionTexto({ matchedTags = [], matchedTop = [], sitio
 // Mapa de temas y sinónimos para mejorar coincidencias semánticas
 const THEMATIC_SYNONYMS = {
   ia: ['ia', 'inteligencia artificial', 'ai', 'machine learning', 'aprendizaje automático'],
-  agua: ['agua', 'hídrica', 'hidrica', 'hídrico', 'hidrico', 'water', 'recurso hídrico'],
+  agua: ['agua', 'hídrica', 'hidrica', 'hídrico', 'hidrico', 'water', 'recurso hídrico', 'huella hídrica', 'huella hidrica', 'consumo de agua', 'refrigeración', 'refrigeracion', 'enfriamiento', 'torres de enfriamiento', 'torres de refrigeración', 'torres de refrigeracion'],
   energia: ['energía', 'energia', 'renovable', 'renovables', 'energías renovables', 'solar', 'eólica', 'hidroeléctrica', 'hidroelectrica', 'geotérmica', 'geotermica'],
   carbono: ['carbono', 'co2', 'captura de carbono', 'secuestro de carbono', 'emisiones', 'neutralidad de carbono'],
   movilidad: ['vehículo eléctrico', 'vehiculos eléctricos', 'coche eléctrico', 'movilidad sostenible', 'transporte limpio'],
@@ -186,7 +186,7 @@ function extractThematicTags(text) {
 function extractNamedEntities(text) {
   try {
     const entities = new Set();
-    const regex = /(?:\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,3})/g;
+    const regex = /(?:\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+){0,3})|\b[A-Z]{2,}[A-Z0-9]*\b/g;
     const matches = String(text || '').match(regex) || [];
     for (const m of matches) {
       const clean = m.trim();
@@ -196,6 +196,16 @@ function extractNamedEntities(text) {
   } catch {
     return new Set();
   }
+}
+
+// Conjuntos temáticos para co-ocurrencia IA+Agua/Energía
+const AI_TERMS = new Set(['ia','inteligencia artificial','ai','machine learning','chatgpt','modelo de lenguaje','modelos de lenguaje','openai','microsoft','google']);
+const WATER_TERMS = new Set(['agua','hídrica','hidrica','huella hídrica','huella hidrica','consumo de agua','refrigeración','refrigeracion','enfriamiento','torres de enfriamiento','torres de refrigeración','torres de refrigeracion','centros de datos','data center']);
+const ENERGY_TERMS = new Set(['energía','energia','kwh','electricidad','consumo energético','consumo energetico','centros de datos','data center']);
+
+function hasAnyTerm(normText, termsSet) {
+  for (const t of termsSet) { if (normText.includes(t)) return true; }
+  return false;
 }
 
 // Función para extraer contenido de noticias desde URLs
@@ -382,9 +392,20 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
         if (topKeywordSet.has(t)) matchesTop++;
       }
 
-      // Score combinado más estricto: énfasis en n-gramas y similitud, boost si mismo dominio
+      // Score combinado más estricto: énfasis en n-gramas y similitud, boost si mismo dominio y co-ocurrencias IA+agua/energía
+      const normResumen = normalizeText(resumenNoticia);
+      const normDoc = normalizeText(textoDoc);
+      const resumenAI = hasAnyTerm(normResumen, AI_TERMS);
+      const docAI = hasAnyTerm(normDoc, AI_TERMS);
+      const resumenWater = hasAnyTerm(normResumen, WATER_TERMS);
+      const docWater = hasAnyTerm(normDoc, WATER_TERMS);
+      const resumenEnergy = hasAnyTerm(normResumen, ENERGY_TERMS);
+      const docEnergy = hasAnyTerm(normDoc, ENERGY_TERMS);
+      const coAIWater = (resumenAI && docAI && resumenWater && docWater) ? 0.08 : 0;
+      const coAIEnergy = (resumenAI && docAI && resumenEnergy && docEnergy) ? 0.06 : 0;
+
       const baseScore = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
-      const score = sameHost ? Math.min(baseScore + 0.12, 1) : baseScore;
+      const score = Math.min(baseScore + (sameHost ? 0.12 : 0) + coAIWater + coAIEnergy, 1);
 
       // Guardar detalles de coincidencias
       const matchedTopArr = topKeywords.filter(t => tokensDoc.includes(t));
