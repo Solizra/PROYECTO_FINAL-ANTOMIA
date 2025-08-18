@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
+import TrendsService from '../Services/Trends-services.js';
 
 // Configuración
 const DEBUG = false;
@@ -567,6 +568,53 @@ export async function analizarNoticiaEstructurada(input) {
       error: error.message || String(error),
     };
   }
+}
+
+// Procesar un conjunto de URLs: analizar y persistir en Trends si corresponde
+export async function procesarUrlsYPersistir(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const trendsSvc = new TrendsService();
+  const resultados = [];
+
+  for (const item of items) {
+    const url = (typeof item === 'string') ? item : (item?.url || '');
+    const tituloTrend = (typeof item === 'object') ? (item?.title || item?.titulo || 'Sin título') : 'Sin título';
+    if (!url) continue;
+
+    try {
+      const resultado = await analizarNoticiaEstructurada(url);
+      resultados.push({ url, resultado });
+
+      if (!resultado?.esClimatech) continue;
+
+      const relacionados = Array.isArray(resultado.newslettersRelacionados)
+        ? resultado.newslettersRelacionados
+        : [];
+      if (relacionados.length === 0) continue;
+
+      for (const nl of relacionados) {
+        try {
+          const payload = {
+            id_newsletter: nl.id ?? null,
+            Título_del_Trend: resultado.titulo || tituloTrend,
+            Link_del_Trend: url,
+            Nombre_Newsletter_Relacionado: nl.titulo || '',
+            Fecha_Relación: nl.fechaRelacion || new Date().toISOString(),
+            Relacionado: true,
+            Analisis_relacion: nl.analisisRelacion || ''
+          };
+          await trendsSvc.createAsync(payload);
+        } catch (e) {
+          // continuar con el siguiente sin romper el flujo
+        }
+      }
+    } catch (e) {
+      // continuar con el siguiente
+    }
+  }
+
+  return resultados;
 }
 
 // Función para manejar el chat interactivo

@@ -4,6 +4,7 @@ import fs from 'fs';
 import cron from 'node-cron';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { procesarUrlsYPersistir } from '../Agent/main.js';
 
 // 🔐 Pegá tu clave acá
 const API_KEY = '5cd26781b7d64a329de50c8899fc5eaa'; // 👈 reemplazar
@@ -95,6 +96,15 @@ async function buscarNoticias(maxResults = 5) { // Cambia este número por el qu
     // Guardar en archivo JSON dentro de esta carpeta
     fs.writeFileSync(noticiasFilePath, JSON.stringify(minimal, null, 2));
     console.log(`✅ URLs guardadas en "${noticiasFilePath}"`);
+
+    // Enviar URLs al agente para analizar y (si corresponde) persistir en Trends
+    try {
+      console.log(`🤖 Enviando ${minimal.length} URLs al agente para análisis...`);
+      await procesarUrlsYPersistir(minimal);
+      console.log('✅ Agente terminó el procesamiento de URLs');
+    } catch (e) {
+      console.error('❌ Error al procesar URLs con el agente:', e?.message || e);
+    }
     console.log(`🕐 [${new Date().toLocaleString()}] Búsqueda completada exitosamente\n`);
 
     return articles;
