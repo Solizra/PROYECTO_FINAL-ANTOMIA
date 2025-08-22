@@ -8,6 +8,7 @@ import NewsletterRouter from './Controllers/Newsletter-controller.js'
 import TrendsRouter from './Controllers/Trends-controller.js'
 import { analizarNoticiaEstructurada } from './Agent/main.js';
 import { iniciarProgramacionAutomatica } from './APIs/buscarNoticias.mjs';
+import eventBus from './EventBus.js';
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -51,7 +52,39 @@ app.post('/api/Newsletter/analizar', async (req, res) => {
   }
 });
 
-// SSE deshabilitado para evitar errores; el frontend actualiza por intervalo de 60s
+// Endpoint para Server-Sent Events (SSE) - Actualización en tiempo real
+app.get('/api/events', (req, res) => {
+  // Configurar headers para SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+
+  // Enviar heartbeat cada 30 segundos para mantener la conexión
+  const heartbeat = setInterval(() => {
+    res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
+  }, 30000);
+
+  // Agregar cliente al EventBus
+  eventBus.addClient(res);
+
+  // Manejar desconexión del cliente
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    eventBus.removeClient(res);
+  });
+
+  // Enviar evento de conexión exitosa
+  res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`);
+});
+
+// Endpoint para obtener estadísticas del EventBus
+app.get('/api/events/stats', (req, res) => {
+  res.json(eventBus.getStats());
+});
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

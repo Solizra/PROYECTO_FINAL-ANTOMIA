@@ -12,6 +12,9 @@ function Home() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sseConnected, setSseConnected] = useState(false);
+  const [procesandoNoticias, setProcesandoNoticias] = useState(false);
+  const [trendsCreados, setTrendsCreados] = useState(0);
 
   const sortByDateDesc = (items) => {
     const parse = (v) => {
@@ -138,7 +141,184 @@ function Home() {
     }
   }, [trends.length]);
 
-  // Refresco automático cada 60s desde la BDD (sin dependencias nuevas)
+  // Conexión a Server-Sent Events para actualizaciones en tiempo real
+  useEffect(() => {
+    let eventSource = null;
+    let isMounted = true;
+
+    const connectToSSE = () => {
+      try {
+        eventSource = new EventSource('http://localhost:3000/api/events');
+        
+        eventSource.onopen = () => {
+          console.log('🔌 Conectado al servidor de eventos');
+          setSseConnected(true);
+        };
+
+        eventSource.onmessage = (event) => {
+          if (!isMounted) return;
+          
+          try {
+            const data = JSON.parse(event.data);
+            console.log('📡 Evento recibido:', data);
+            
+            switch (data.type) {
+              case 'newTrend':
+                // Agregar nuevo trend a la lista
+                const newTrend = data.data;
+                setTrends(prev => {
+                  const updated = [newTrend, ...prev];
+                  return sortByDateDesc(updated);
+                });
+                console.log('✅ Nuevo trend agregado en tiempo real:', newTrend.trendTitulo);
+                break;
+                
+                             case 'newsUpdate':
+                 console.log('📰 Actualización de noticias:', data.data);
+                 
+                 // Mostrar notificación visual de que se procesaron nuevas noticias
+                 if (data.data.count > 0) {
+                   setProcesandoNoticias(true);
+                   
+                   if (data.data.tipo === 'trendsCreados') {
+                     // ¡NUEVOS TRENDS CREADOS! Recargar inmediatamente
+                     console.log(`🎉 ¡Se crearon ${data.data.count} nuevos trends! Recargando tabla...`);
+                     setTrendsCreados(data.data.count);
+                     
+                     // Recargar la tabla inmediatamente
+                     setTimeout(() => {
+                       cargarTrendsDesdeBDD();
+                       setProcesandoNoticias(false);
+                       setTrendsCreados(0);
+                     }, 500); // Solo 500ms para trends nuevos
+                     
+                   } else if (data.data.tipo === 'noticiasProcesadas') {
+                     // Solo noticias procesadas, no hay trends nuevos
+                     console.log('📰 Noticias procesadas (sin trends nuevos)');
+                     setProcesandoNoticias(false);
+                     
+                   } else {
+                     // Tipo no especificado, recargar por si acaso
+                     console.log('📰 Tipo de notificación no especificado, recargando tabla...');
+                     setTimeout(() => {
+                       cargarTrendsDesdeBDD();
+                       setProcesandoNoticias(false);
+                     }, 2000);
+                   }
+                 }
+                 break;
+                
+              case 'connected':
+                console.log('✅ Conexión establecida con el servidor');
+                break;
+                
+              case 'heartbeat':
+                // Mantener conexión activa
+                break;
+                
+              case 'history':
+                // Cargar historial de eventos recientes
+                if (data.events && data.events.length > 0) {
+                  const recentTrends = data.events
+                    .filter(e => e.type === 'newTrend')
+                    .map(e => e.data);
+                  if (recentTrends.length > 0) {
+                    setTrends(prev => {
+                      const combined = [...recentTrends, ...prev];
+                      return sortByDateDesc(combined);
+                    });
+                  }
+                }
+                break;
+                
+              default:
+                console.log('📡 Evento desconocido:', data.type);
+            }
+          } catch (parseError) {
+            console.error('Error parseando evento:', parseError);
+          }
+        };
+
+        eventSource.onerror = (error) => {
+          console.error('❌ Error en conexión SSE:', error);
+          setSseConnected(false);
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          
+          // Reintentar conexión después de 5 segundos
+          setTimeout(() => {
+            if (isMounted) {
+              connectToSSE();
+            }
+          }, 5000);
+        };
+
+      } catch (error) {
+        console.error('❌ Error conectando a SSE:', error);
+      }
+    };
+
+    // Conectar al servidor de eventos
+    connectToSSE();
+
+    // Cleanup al desmontar
+    return () => {
+      isMounted = false;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+    };
+  }, []);
+
+  // Función para cargar trends desde la base de datos
+  const cargarTrendsDesdeBDD = async () => {
+    try {
+      console.log('🔄 Recargando trends desde la base de datos...');
+      const res = await fetch('http://localhost:3000/api/Trends');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      
+      const mapped = data.map((t, idx) => ({
+        id: t.id ?? idx,
+        newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
+        newsletterId: t.id_newsletter ?? '',
+        fechaRelacion: t.Fecha_Relación || '',
+        trendTitulo: t.Título_del_Trend || '',
+        trendLink: t.Link_del_Trend || '',
+        relacionado: !!t.Relacionado,
+        newsletterLink: '',
+        analisisRelacion: t.Analisis_relacion || '',
+        resumenFama: '',
+        autor: '',
+      }));
+      
+             if (mapped.length) {
+         const trendsAnteriores = trends.length;
+         setTrends(sortByDateDesc(mapped));
+         
+         // Solo mostrar mensaje de "nuevos trends" si realmente hay más que antes
+         if (trendsAnteriores > 0 && mapped.length > trendsAnteriores) {
+           const nuevos = mapped.length - trendsAnteriores;
+           console.log(`🎉 ¡Se agregaron ${nuevos} nuevos trends a la tabla!`);
+           console.log(`📊 Total anterior: ${trendsAnteriores} → Total actual: ${mapped.length}`);
+         } else if (trendsAnteriores === 0) {
+           console.log(`✅ Carga inicial: Se cargaron ${mapped.length} trends desde la BDD`);
+         } else {
+           console.log(`✅ Se recargaron ${mapped.length} trends desde la BDD (sin cambios)`);
+         }
+       } else {
+         console.log('ℹ️ No hay trends en la base de datos');
+       }
+    } catch (error) {
+      console.error('❌ Error cargando trends desde BDD:', error);
+    }
+  };
+
+  // Fallback: refresco automático cada 60s desde la BDD (solo si no hay SSE)
   useEffect(() => {
     let isMounted = true;
     const cargarTrends = async () => {
@@ -251,7 +431,28 @@ function Home() {
     <div className="home-container">
 
       <main className="main-content">
-        <h1 className="main-title">Últimos trends reconocidos</h1>
+        <div className="header-section">
+          <h1 className="main-title">Últimos trends reconocidos</h1>
+          <div className="connection-status">
+            <span className={`status-indicator ${sseConnected ? 'connected' : 'disconnected'}`}>
+              {sseConnected ? '🟢' : '🔴'}
+            </span>
+            <span className="status-text">
+              {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
+            </span>
+                         {procesandoNoticias && (
+               <div className="processing-indicator">
+                 <span className="spinner">⏳</span>
+                 <span>
+                   {trendsCreados > 0 
+                     ? `¡Se crearon ${trendsCreados} nuevos trends! Actualizando tabla...`
+                     : 'Procesando nuevas noticias...'
+                   }
+                 </span>
+               </div>
+             )}
+          </div>
+        </div>
 
         <table className="trends-table">
           <thead>
@@ -269,8 +470,8 @@ function Home() {
             </tr>
           </thead>
           <tbody>
-            {trends.map((trend) => (
-              <tr key={`${trend.id}-${trend.trendLink || ''}`}>
+            {trends.map((trend, index) => (
+              <tr key={trend.id || `trend-${index}-${trend.trendLink || 'no-url'}`}>
                 <td>
                   <Link to={`/trends/${trend.id || ''}`}>
                     <button className="info-btn-outline">

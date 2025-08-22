@@ -201,3 +201,78 @@
   max-width: 20px;
   max-height: 20px;
 }
+
+/* Estilos para el header con indicador de conexión */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.main-title {
+  text-align: left;
+  margin-bottom: 0;
+  color: #76f6ff;
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #2a2a2e;
+  border-radius: 20px;
+  border: 1px solid #444;
+}
+
+.status-indicator {
+  font-size: 1.2rem;
+}
+
+.status-text {
+  font-size: 0.9rem;
+  color: #ccc;
+  font-weight: 500;
+}
+
+.status-indicator.connected {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.processing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #4a9da3;
+  border-radius: 15px;
+  color: white;
+  font-size: 0.8rem;
+  animation: slideIn 0.3s ease-in;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

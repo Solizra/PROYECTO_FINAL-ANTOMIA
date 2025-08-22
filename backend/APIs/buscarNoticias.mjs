@@ -134,8 +134,45 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
     // Si hubo errores de extracción, el agente responderá con esClimatech=false y no se insertará.
     try {
       console.log(`🤖 Enviando ${minimal.length} URLs al agente para análisis...`);
-      await procesarUrlsYPersistir(minimal);
+      const resultados = await procesarUrlsYPersistir(minimal);
       console.log('✅ Agente terminó el procesamiento de URLs');
+      
+      // Verificar cuántos trends se crearon realmente
+      let trendsCreados = 0;
+      if (resultados && resultados.length > 0) {
+        // Contar solo los resultados que realmente se insertaron en la base de datos
+        trendsCreados = resultados.filter(r => r.insertado === true).length;
+        console.log(`📊 Trends creados en la base de datos: ${trendsCreados}/${resultados.length}`);
+      }
+      
+      // Notificar al EventBus con información específica
+      try {
+        const eventBus = await import('../EventBus.js');
+        
+        if (trendsCreados > 0) {
+          // Si se crearon trends, notificar como "trendsCreados"
+          eventBus.default.notifyNewsUpdate({
+            count: trendsCreados,
+            timestamp: new Date().toISOString(),
+            message: `Se crearon ${trendsCreados} nuevos trends`,
+            tipo: 'trendsCreados',
+            resultados: resultados
+          });
+          console.log(`📡 Notificación de trends creados enviada al EventBus: ${trendsCreados} trends`);
+        } else {
+          // Si no se crearon trends, notificar como "noticias procesadas"
+          eventBus.default.notifyNewsUpdate({
+            count: resultados.length,
+            timestamp: new Date().toISOString(),
+            message: `Se procesaron ${resultados.length} noticias (sin trends nuevos)`,
+            tipo: 'noticiasProcesadas',
+            resultados: resultados
+          });
+          console.log('📡 Notificación de noticias procesadas enviada al EventBus');
+        }
+      } catch (eventError) {
+        console.error('❌ Error notificando al EventBus:', eventError);
+      }
     } catch (e) {
       console.error('❌ Error al procesar URLs con el agente:', e?.message || e);
     }

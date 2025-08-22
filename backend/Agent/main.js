@@ -4,6 +4,7 @@ import * as cheerio from 'cheerio';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
 import TrendsService from '../Services/Trends-services.js';
+import eventBus from '../EventBus.js';
 
 // Configuración
 const DEBUG = false;
@@ -652,33 +653,128 @@ export async function procesarUrlsYPersistir(items = []) {
 
     try {
       const resultado = await analizarNoticiaEstructurada(url);
-      resultados.push({ url, resultado });
-
-      if (!resultado?.esClimatech) continue;
+      
+      // Inicializar el resultado con información básica
+      const resultadoItem = { 
+        url, 
+        resultado, 
+        insertado: false, 
+        trendsCreados: 0 
+      };
+      
+      if (!resultado?.esClimatech) {
+        resultados.push(resultadoItem);
+        continue;
+      }
 
       const relacionados = Array.isArray(resultado.newslettersRelacionados)
         ? resultado.newslettersRelacionados
         : [];
-      // No crear Trends sin relación automáticamente: reducimos ruido en BDD
-      if (relacionados.length === 0) continue;
-
-      for (const nl of relacionados) {
+      
+      // Crear trends para TODAS las noticias climatech, tengan o no newsletters relacionados
+      let trendsInsertados = 0;
+      
+      if (relacionados.length > 0) {
+        // Si hay newsletters relacionados, crear trends con esas relaciones
+        for (const nl of relacionados) {
+          try {
+            const payload = {
+              id_newsletter: nl.id ?? null,
+              Título_del_Trend: resultado.titulo || tituloTrend,
+              Link_del_Trend: url,
+              Nombre_Newsletter_Relacionado: nl.titulo || '',
+              Fecha_Relación: nl.fechaRelacion || new Date().toISOString(),
+              Relacionado: true,
+              Analisis_relacion: nl.analisisRelacion || ''
+            };
+            const createdTrend = await trendsSvc.createAsync(payload);
+            
+            if (createdTrend && createdTrend.id) {
+              trendsInsertados++;
+              
+              // Notificar nuevo trend agregado a través del EventBus
+              const trendData = {
+                id: createdTrend.id,
+                newsletterTitulo: nl.titulo || '',
+                newsletterId: nl.id ?? '',
+                fechaRelacion: nl.fechaRelacion || new Date().toISOString(),
+                trendTitulo: resultado.titulo || tituloTrend,
+                trendLink: url,
+                relacionado: true,
+                newsletterLink: nl.link || '',
+                analisisRelacion: nl.analisisRelacion || '',
+                resumenFama: resultado.resumenFama || '',
+                autor: resultado.autor || '',
+              };
+              
+              try {
+                eventBus.notifyNewTrend(trendData);
+                console.log(`📡 Nuevo trend notificado: ${trendData.trendTitulo}`);
+              } catch (eventError) {
+                console.error('Error notificando nuevo trend:', eventError);
+              }
+            }
+          } catch (e) {
+            console.error(`Error creando trend para ${url}:`, e?.message || e);
+            // continuar con el siguiente sin romper el flujo
+          }
+        }
+      } else {
+        // Si NO hay newsletters relacionados, crear trend SIN relación
         try {
           const payload = {
-            id_newsletter: nl.id ?? null,
+            id_newsletter: null, // Sin newsletter relacionado
             Título_del_Trend: resultado.titulo || tituloTrend,
             Link_del_Trend: url,
-            Nombre_Newsletter_Relacionado: nl.titulo || '',
-            Fecha_Relación: nl.fechaRelacion || new Date().toISOString(),
-            Relacionado: true,
-            Analisis_relacion: nl.analisisRelacion || ''
+            Nombre_Newsletter_Relacionado: '', // Vacío
+            Fecha_Relación: new Date().toISOString(),
+            Relacionado: false, // No relacionado
+            Analisis_relacion: 'Noticia climatech sin newsletters relacionados'
           };
-          await trendsSvc.createAsync(payload);
+          const createdTrend = await trendsSvc.createAsync(payload);
+          
+          if (createdTrend && createdTrend.id) {
+            trendsInsertados++;
+            
+            // Notificar nuevo trend agregado a través del EventBus
+            const trendData = {
+              id: createdTrend.id,
+              newsletterTitulo: '', // Sin newsletter
+              newsletterId: '', // Sin newsletter
+              fechaRelacion: new Date().toISOString(),
+              trendTitulo: resultado.titulo || tituloTrend,
+              trendLink: url,
+              relacionado: false, // No relacionado
+              newsletterLink: '',
+              analisisRelacion: 'Noticia climatech sin newsletters relacionados',
+              resumenFama: resultado.resumenFama || '',
+              autor: resultado.autor || '',
+            };
+            
+            try {
+              eventBus.notifyNewTrend(trendData);
+              console.log(`📡 Nuevo trend sin newsletter notificado: ${trendData.trendTitulo}`);
+            } catch (eventError) {
+              console.error('Error notificando nuevo trend:', eventError);
+            }
+          }
         } catch (e) {
-          // continuar con el siguiente sin romper el flujo
+          console.error(`Error creando trend sin newsletter para ${url}:`, e?.message || e);
         }
       }
+
+
+      
+      // Marcar si se insertaron trends y cuántos
+      if (trendsInsertados > 0) {
+        resultadoItem.insertado = true;
+        resultadoItem.trendsCreados = trendsInsertados;
+        console.log(`✅ Se crearon ${trendsInsertados} trends para: ${tituloTrend}`);
+      }
+      
+      resultados.push(resultadoItem);
     } catch (e) {
+      console.error(`Error procesando ${url}:`, e?.message || e);
       // continuar con el siguiente
     }
   }

@@ -1,17 +1,17 @@
-import 'dotenv/config'
-console.log('Estoy en entorno Node:', typeof process !== 'undefined');
-console.log('DB_HOST:', process.env.DB_HOST);
+import 'dotenv/config';
 
-// Si te imprime false, el archivo se está ejecutando del lado del navegador, lo cual no debería pasar si usás pg.
-//Verificar la linea de arriba para ver el error del process
+console.log('🔧 Configuración de Base de Datos:');
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_DATABASE:', process.env.DB_DATABASE);
+console.log('DB_USER:', process.env.DB_USER);
+console.log('DB_PORT:', process.env.DB_PORT);
 
 const DBConfig = {
-    
-    host : process.env.DB_HOST ?? undefined,
-    database : process.env.DB_DATABASE ??'',
-    user : process.env.DB_USER ??'',
-    password: process.env.DB_PASSWORD ??'',
-    port : process.env.DB_PORT ?? 5432
-    }
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_DATABASE || 'climatetech_db',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'tu_password',
+  port: parseInt(process.env.DB_PORT) || 5432
+};
 
 export default DBConfig;
