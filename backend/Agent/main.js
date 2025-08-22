@@ -214,7 +214,7 @@ function hasAnyTerm(normText, termsSet) {
 // Función para extraer contenido de noticias desde URLs
 async function extraerContenidoNoticia(url) {
   try {
-    console.log(`🔗 Extrayendo contenido de: ${url}`);
+   // console.log(`🔗 Extrayendo contenido de: ${url}`);
     
     const res = await fetch(url, { agent: httpsAgent });
     if (!res.ok) throw new Error(`Error HTTP: ${res.status} ${res.statusText}`);
@@ -245,7 +245,7 @@ async function extraerContenidoNoticia(url) {
 
     const contenido = parrafos.join('\n').slice(0, 3000);
     
-    console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
+   // console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
     
     return {
       titulo: titulo,
@@ -265,7 +265,7 @@ async function extraerContenidoNoticia(url) {
 // Función para generar resumen usando análisis de texto local
 function generarResumenLocal(contenido) {
   try {
-    console.log(`📝 Generando resumen local...`);
+   // console.log(`📝 Generando resumen local...`);
     
     // Dividir en oraciones
     const oraciones = contenido.split(/[.!?]+/).filter(s => s.trim().length > 10);
@@ -273,7 +273,7 @@ function generarResumenLocal(contenido) {
     // Seleccionar las primeras 3 oraciones más relevantes
     const resumen = oraciones.slice(0, 3).join('. ').trim();
 
-    console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
+   // console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
     
     return resumen + '.';
   } catch (error) {
@@ -285,7 +285,7 @@ function generarResumenLocal(contenido) {
 // Función para determinar si es Climatech usando análisis de palabras clave
 function determinarSiEsClimatechLocal(contenido) {
   try {
-    console.log(`🔍 Evaluando si es Climatech (análisis local)...`);
+ //   console.log(`🔍 Evaluando si es Climatech (análisis local)...`);
     
     const contenidoLower = contenido.toLowerCase();
     let puntuacion = 0;
@@ -304,9 +304,9 @@ function determinarSiEsClimatechLocal(contenido) {
     
     const esClimatech = puntuacion >= 3 || densidad >= 2; // Al menos 3 palabras clave o densidad alta
     
-    console.log(`✅ Evaluación local: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
-    console.log(`📊 Puntuación: ${puntuacion} palabras clave encontradas`);
-    console.log(`🔍 Palabras encontradas: ${palabrasEncontradas.join(', ')}`);
+   // console.log(`✅ Evaluación local: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
+   // console.log(`📊 Puntuación: ${puntuacion} palabras clave encontradas`);
+   // console.log(`🔍 Palabras encontradas: ${palabrasEncontradas.join(', ')}`);
     
     return esClimatech;
   } catch (error) {

@@ -34,13 +34,14 @@ export default class NewsletterRepository {
         params.push(`%${titulo}%`);
       }
 
-     // sql += ` ORDER BY fecha_creacion DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      //params.push(limit, offset); AGREGAR A LA BD
+      sql += ` ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(limit, offset);
 
       const result = await client.query(sql, params);
       newsletters = result.rows;
     } catch (err) {
       console.error('Error al obtener newsletters:', err);
+      throw err; // Re-lanzar el error para que el servicio lo maneje
     } finally {
       await client.end();
     }

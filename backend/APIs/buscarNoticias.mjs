@@ -201,7 +201,7 @@ function iniciarProgramacionAutomatica() {
   // '0 9 * * *' = todos los días a las 9:00 AM
   // '0 9,18 * * *' = todos los días a las 9:00 AM y 6:00 PM
   
-  const cronExpression = '*/1 * * * *'; // Cada minuto
+  const cronExpression = '*/100 * * * *'; // Cada minuto
   
   // Nota: evitamos especificar timezone para mayor compatibilidad en Windows
   // y entornos sin ICU completo. Para expresiones por minuto no es necesario.

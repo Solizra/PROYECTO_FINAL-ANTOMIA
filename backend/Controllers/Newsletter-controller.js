@@ -8,10 +8,15 @@ const svc = new NewsletterService();
 router.get('', async (req, res) => {
   try {
     const data = await svc.getAllAsync(req.query);
+    console.log(`📧 Newsletters obtenidos: ${data.length}`);
     res.status(200).json(data);
   } catch (e) {
-    console.log(e);
-    res.status(500).send('Error interno.');
+    console.error('❌ Error en Newsletter-controller.getAllAsync:', e);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: e.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
