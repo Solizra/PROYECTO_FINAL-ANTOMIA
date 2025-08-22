@@ -26,6 +26,7 @@ function InfoTrend() {
             ⬅ Volver
           </Link>
           <h1 className="infotrend-title">{trend.titulo}</h1>
+
         </header>
 
         <section className="infotrend-section">
@@ -55,10 +56,7 @@ function InfoTrend() {
                 </a>
               </div>
             )}
-            <div className="infotrend-card">
-              <h3>👥 Personas involucradas</h3>
-              <p>{trend.personas}</p>
-            </div>
+            
           </div>
         </section>
       </div>
