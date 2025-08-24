@@ -190,18 +190,15 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
 function iniciarProgramacionAutomatica() {
   console.log('🚀 Iniciando programación automática de búsqueda de noticias...');
   
-  // Ejecutar inmediatamente al iniciar con valor por defecto
-  buscarNoticias();
+  // Esperar 10 segundos para que el frontend se conecte al SSE
+  console.log('⏳ Esperando 10 segundos para que el frontend se conecte...');
+  setTimeout(() => {
+    console.log('✅ Iniciando primera búsqueda de noticias...');
+    buscarNoticias();
+  }, 10000);
   
-  // Programar ejecución cada 30 minutos (puedes cambiar este intervalo)
-  // Formato cron: '*/30 * * * *' = cada 30 minutos
-  // Otros ejemplos:
-  // '0 */1 * * *' = cada hora
-  // '0 */6 * * *' = cada 6 horas
-  // '0 9 * * *' = todos los días a las 9:00 AM
-  // '0 9,18 * * *' = todos los días a las 9:00 AM y 6:00 PM
-  
-  const cronExpression = '*/100 * * * *'; // Cada minuto
+  // Programar ejecución cada 30 minutos (cambiado de cada minuto para evitar spam)
+  const cronExpression = '*/30 * * * *'; // Cada 30 minutos
   
   // Nota: evitamos especificar timezone para mayor compatibilidad en Windows
   // y entornos sin ICU completo. Para expresiones por minuto no es necesario.
@@ -212,7 +209,7 @@ function iniciarProgramacionAutomatica() {
     scheduled: true
   });
   
-  console.log(`⏰ Programación configurada: ejecutando cada minuto`);
+  console.log(`⏰ Programación configurada: ejecutando cada 30 minutos`);
   console.log(`📅 Próxima ejecución programada según cron: ${cronExpression}`);
 }
 

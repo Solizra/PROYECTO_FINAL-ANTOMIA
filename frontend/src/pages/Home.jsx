@@ -111,7 +111,7 @@ function Home() {
                     trendLink: ins.Link_del_Trend || data.url || '',
                     relacionado: !!ins.Relacionado,
                     newsletterLink: ins.newsletterLink || '',
-                    analisisRelacion: '',
+                    analisisRelacion: ins.Analisis_relacion || 'Sin análisis disponible',
                     resumenFama: data.resumenFama || '',
                     autor: data.autor || '',
                   }))
@@ -145,68 +145,81 @@ function Home() {
   useEffect(() => {
     let eventSource = null;
     let isMounted = true;
+    let reconnectAttempts = 0;
+    let reconnectTimeout = null;
+    const maxReconnectAttempts = 5;
 
     const connectToSSE = () => {
       try {
+        console.log('🔌 Intentando conectar a SSE...');
         eventSource = new EventSource('http://localhost:3000/api/events');
         
         eventSource.onopen = () => {
-          console.log('🔌 Conectado al servidor de eventos');
+          console.log('🔌 ✅ Conectado al servidor de eventos SSE');
           setSseConnected(true);
+          reconnectAttempts = 0; // Resetear intentos de reconexión
         };
 
         eventSource.onmessage = (event) => {
           if (!isMounted) return;
           
+          console.log('📡 Mensaje SSE recibido (raw):', event.data);
+          
           try {
             const data = JSON.parse(event.data);
-            console.log('📡 Evento recibido:', data);
+            console.log('📡 Evento parseado:', data);
             
             switch (data.type) {
               case 'newTrend':
+                console.log('🎯 Evento newTrend recibido:', data.data);
                 // Agregar nuevo trend a la lista
                 const newTrend = data.data;
                 setTrends(prev => {
+                  console.log('📊 Trends anteriores:', prev.length);
                   const updated = [newTrend, ...prev];
+                  console.log('📊 Trends actualizados:', updated.length);
                   return sortByDateDesc(updated);
                 });
                 console.log('✅ Nuevo trend agregado en tiempo real:', newTrend.trendTitulo);
                 break;
                 
-                             case 'newsUpdate':
-                 console.log('📰 Actualización de noticias:', data.data);
-                 
-                 // Mostrar notificación visual de que se procesaron nuevas noticias
-                 if (data.data.count > 0) {
-                   setProcesandoNoticias(true);
-                   
-                   if (data.data.tipo === 'trendsCreados') {
-                     // ¡NUEVOS TRENDS CREADOS! Recargar inmediatamente
-                     console.log(`🎉 ¡Se crearon ${data.data.count} nuevos trends! Recargando tabla...`);
-                     setTrendsCreados(data.data.count);
-                     
-                     // Recargar la tabla inmediatamente
-                     setTimeout(() => {
-                       cargarTrendsDesdeBDD();
-                       setProcesandoNoticias(false);
-                       setTrendsCreados(0);
-                     }, 500); // Solo 500ms para trends nuevos
-                     
-                   } else if (data.data.tipo === 'noticiasProcesadas') {
-                     // Solo noticias procesadas, no hay trends nuevos
-                     console.log('📰 Noticias procesadas (sin trends nuevos)');
-                     setProcesandoNoticias(false);
-                     
-                   } else {
-                     // Tipo no especificado, recargar por si acaso
-                     console.log('📰 Tipo de notificación no especificado, recargando tabla...');
-                     setTimeout(() => {
-                       cargarTrendsDesdeBDD();
-                       setProcesandoNoticias(false);
-                     }, 2000);
-                   }
-                 }
-                 break;
+              case 'newsUpdate':
+                console.log('📰 Evento newsUpdate recibido:', data.data);
+                console.log('📰 Tipo de notificación:', data.data.tipo);
+                console.log('📰 Cantidad de trends:', data.data.count);
+                
+                // Mostrar notificación visual de que se procesaron nuevas noticias
+                if (data.data.count > 0) {
+                  setProcesandoNoticias(true);
+                  
+                  if (data.data.tipo === 'trendsCreados') {
+                    // ¡NUEVOS TRENDS CREADOS! Recargar inmediatamente
+                    console.log(`🎉 ¡Se crearon ${data.data.count} nuevos trends! Recargando tabla...`);
+                    setTrendsCreados(data.data.count);
+                    
+                    // Recargar la tabla inmediatamente
+                    setTimeout(() => {
+                      console.log('🔄 Ejecutando cargarTrendsDesdeBDD...');
+                      cargarTrendsDesdeBDD();
+                      setProcesandoNoticias(false);
+                      setTrendsCreados(0);
+                    }, 500); // Solo 500ms para trends nuevos
+                    
+                  } else if (data.data.tipo === 'noticiasProcesadas') {
+                    // Solo noticias procesadas, no hay trends nuevos
+                    console.log('📰 Noticias procesadas (sin trends nuevos)');
+                    setProcesandoNoticias(false);
+                    
+                  } else {
+                    // Tipo no especificado, recargar por si acaso
+                    console.log('📰 Tipo de notificación no especificado, recargando tabla...');
+                    setTimeout(() => {
+                      cargarTrendsDesdeBDD();
+                      setProcesandoNoticias(false);
+                    }, 2000);
+                  }
+                }
+                break;
                 
               case 'connected':
                 console.log('✅ Conexión establecida con el servidor');
@@ -241,18 +254,33 @@ function Home() {
 
         eventSource.onerror = (error) => {
           console.error('❌ Error en conexión SSE:', error);
+          console.error('❌ Detalles del error:', {
+            readyState: eventSource?.readyState,
+            url: eventSource?.url,
+            withCredentials: eventSource?.withCredentials
+          });
           setSseConnected(false);
+          
           if (eventSource) {
             eventSource.close();
             eventSource = null;
           }
           
-          // Reintentar conexión después de 5 segundos
-          setTimeout(() => {
-            if (isMounted) {
-              connectToSSE();
-            }
-          }, 5000);
+          // Solo reintentar si no hemos excedido el máximo de intentos
+          if (reconnectAttempts < maxReconnectAttempts && isMounted) {
+            reconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff, max 30s
+            console.log(`🔄 Reintentando conexión SSE (intento ${reconnectAttempts}/${maxReconnectAttempts}) en ${delay}ms...`);
+            
+            reconnectTimeout = setTimeout(() => {
+              if (isMounted) {
+                connectToSSE();
+              }
+            }, delay);
+          } else if (reconnectAttempts >= maxReconnectAttempts) {
+            console.error('❌ Máximo de intentos de reconexión alcanzado. Usando fallback de polling.');
+            // Aquí podríamos activar un fallback de polling
+          }
         };
 
       } catch (error) {
@@ -261,6 +289,7 @@ function Home() {
     };
 
     // Conectar al servidor de eventos
+    console.log('🚀 Iniciando conexión SSE...');
     connectToSSE();
 
     // Cleanup al desmontar
@@ -269,6 +298,10 @@ function Home() {
       if (eventSource) {
         eventSource.close();
         eventSource = null;
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
       }
     };
   }, []);
@@ -403,7 +436,7 @@ function Home() {
             trendLink: ins.Link_del_Trend || data.url || '',
             relacionado: !!ins.Relacionado,
             newsletterLink: ins.newsletterLink || '',
-            analisisRelacion: '',
+            analisisRelacion: ins.Analisis_relacion || 'Sin análisis disponible',
             resumenFama: data.resumenFama || '',
             autor: data.autor || '',
           }))
@@ -440,6 +473,24 @@ function Home() {
             <span className="status-text">
               {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
             </span>
+            <button 
+              onClick={() => {
+                console.log('🧪 Probando conexión SSE...');
+                console.log('📊 Trends actuales:', trends.length);
+                cargarTrendsDesdeBDD();
+              }}
+              style={{ 
+                marginLeft: '10px', 
+                padding: '5px 10px', 
+                background: '#007bff', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Recargar
+            </button>
                          {procesandoNoticias && (
                <div className="processing-indicator">
                  <span className="spinner">⏳</span>
@@ -471,11 +522,14 @@ function Home() {
           </thead>
           <tbody>
             {trends.map((trend, index) => (
-              <tr key={trend.id || `trend-${index}-${trend.trendLink || 'no-url'}`}>
+              <tr key={`${trend.id ?? 'noid'}|${trend.newsletterId ?? 'none'}|${trend.trendLink ?? 'nolink'}|${trend.fechaRelacion ?? 'nofecha'}|${index}`}>
                 <td>
                   <Link to={`/trends/${trend.id || ''}`}>
-                    <button className="info-btn-outline">
-                      <img src="../src/assets/ojito.png" alt="Ojo" />
+                    <button 
+                      className="info-btn-outline"
+                      onClick={() => console.log('InfoTrend: Navegando a trend ID:', trend.id, 'Trend completo:', trend)}
+                    >
+                      <img src="/ojito.png" alt="Ojo" />
                     </button>
                   </Link>
                 </td>

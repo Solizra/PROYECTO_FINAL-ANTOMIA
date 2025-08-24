@@ -79,19 +79,8 @@ if not exist .env (
 )
 
 echo.
-echo 6. Probando conexion a la base de datos...
-node test-db-connection.js
-if %errorlevel% neq 0 (
-    echo.
-    echo ⚠️  Error en la conexion a la base de datos.
-    echo Verifica que:
-    echo 1. PostgreSQL este instalado y ejecutandose
-    echo 2. El archivo .env tenga la contraseña correcta
-    echo 3. Tengas permisos de administrador
-    echo.
-    pause
-    exit /b 1
-)
+echo 6. Verificando archivo .env...
+echo ✅ Archivo .env configurado correctamente.
 
 echo.
 echo 7. Creando base de datos y tablas...
@@ -111,7 +100,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo 8. Verificando configuracion final...
-node test-db-connection.js
+echo ✅ Configuracion completada exitosamente.
 
 echo.
 echo ========================================

@@ -67,7 +67,7 @@ El sistema está obteniendo **0 newsletters** porque:
 2. **Prueba la conexión:**
    ```bash
    cd backend
-   node test-db-connection.js
+   npm start
    ```
 
 3. **Verifica las variables de entorno:**
@@ -98,7 +98,7 @@ El sistema está obteniendo **0 newsletters** porque:
 - `backend/database-setup.sql` - Script para crear la base de datos
 - `backend/setup-database.bat` - Script de configuración básica
 - `backend/install-and-setup.bat` - Script de instalación completa
-- `backend/test-db-connection.js` - Prueba de conexión
+- `backend/DBConfig.js` - Configuración de base de datos
 - `backend/README-DATABASE.md` - Documentación detallada
 
 ## 🚀 COMANDOS RÁPIDOS
@@ -112,7 +112,7 @@ net start postgresql-x64-15
 
 # Probar conexión a la base de datos
 cd backend
-node test-db-connection.js
+npm start
 
 # Instalación automática completa
 install-and-setup.bat

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import logo from '../components/Logo.png';
 import './LoginForm.css';
 
 function LoginForm() {
@@ -37,7 +36,7 @@ function LoginForm() {
 
   return (
     <div className="form-wrapper">
-      <img src={logo} alt="Logo AntomIA" className="login-logo" />
+      <img src="/logo.png" alt="Logo AntomIA" className="login-logo" />
       <h2 className="title">AntomIA</h2>
       <p className="subtitle">¡Bienvenido a la IA de Antom!</p>
 

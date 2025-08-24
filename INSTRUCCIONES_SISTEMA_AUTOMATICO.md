@@ -70,10 +70,10 @@ Ve a: `http://localhost:5173`
 
 ## 🧪 Probar el sistema
 
-### Opción 1: Ejecutar script de prueba
+### Opción 1: Verificar manualmente
 ```bash
 cd backend
-node test-sistema-completo.js
+npm start
 ```
 
 ### Opción 2: Verificar manualmente
@@ -100,9 +100,9 @@ node test-sistema-completo.js
 3. Revisa la consola del navegador
 
 ### Error de keys duplicados en React:
-1. Ejecuta: `cd backend && node test-keys-unicos.js`
-2. Verifica que no haya IDs duplicados en la base de datos
-3. Si persiste, reinicia el frontend para limpiar el estado
+1. Verifica que no haya IDs duplicados en la base de datos
+2. Si persiste, reinicia el frontend para limpiar el estado
+3. Los keys ahora son únicos y no deberían repetirse
 
 ## 📝 Archivos clave del sistema
 
