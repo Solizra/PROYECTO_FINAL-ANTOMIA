@@ -84,6 +84,7 @@
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 40px;
+  table-layout: fixed; /* Permite controlar el ancho de las columnas */
 }
 
 .trends-table th,
@@ -92,6 +93,84 @@
   border-bottom: 1px solid #444;
   text-align: left;
   font-size: 14px;
+  overflow: hidden;
+  word-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
+  vertical-align: top;
+}
+
+/* ===== ANCHO DE COLUMNAS ESPECÍFICAS ===== */
+/* Columna 1: Checkbox/Info (más angosta) */
+.trends-table th:nth-child(1),
+.trends-table td:nth-child(1) {
+  width: 40px;
+}
+
+/* Columna 2: Título del Trend (50% más ancha) */
+.trends-table th:nth-child(2),
+.trends-table td:nth-child(2) {
+  width: 35%; /* Aumentado para compensar columnas eliminadas */
+}
+
+/* Columna 3: Link del Trend (50% más angosta) */
+.trends-table th:nth-child(3),
+.trends-table td:nth-child(3) {
+  width: 20%; /* Aumentado para compensar columnas eliminadas */
+}
+
+/* Columna 4: Nombre Newsletter Relacionado */
+.trends-table th:nth-child(4),
+.trends-table td:nth-child(4) {
+  width: 25%;
+}
+
+/* Columna 5: Fecha Relación */
+.trends-table th:nth-child(5),
+.trends-table td:nth-child(5) {
+  width: 10%;
+}
+
+/* Columna 6: Eliminar */
+.trends-table th:nth-child(6),
+.trends-table td:nth-child(6) {
+  width: 10%;
+}
+
+/* ===== ESTILOS PARA COLUMNAS ESPECÍFICAS ===== */
+/* Columna del título del trend - permitir wrap del texto */
+.trends-table td:nth-child(2) {
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+/* Columna del link - mostrar URL completa en hover */
+.trends-table td:nth-child(3) {
+  position: relative;
+}
+
+.trends-table td:nth-child(3) a {
+  display: block;
+  overflow: hidden;
+  word-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.trends-table td:nth-child(3) a:hover {
+  background-color: #1c1c1e;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* Todas las celdas permiten wrap del texto */
+.trends-table td {
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.4;
+  max-height: none;
 }
 
 .trends-table thead {

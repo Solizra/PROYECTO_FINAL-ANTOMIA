@@ -571,9 +571,7 @@ function Home() {
               <th>Título del Trend</th>
               <th>Link del Trend</th>
               <th>Nombre Newsletter Relacionado</th>
-              <th>ID Newsletter</th>
               <th>Fecha Relación</th>
-              <th>Relacionado</th>
               <th>Eliminar</th>
             </tr>
           </thead>
@@ -597,9 +595,7 @@ function Home() {
                   ) : '—'}
                 </td>
                 <td>{trend.newsletterTitulo || '—'}</td>
-                <td>{trend.newsletterId || '—'}</td>
                 <td>{trend.fechaRelacion ? new Date(trend.fechaRelacion).toLocaleString() : '—'}</td>
-                <td style={{ textAlign: 'center' }}>{trend.relacionado ? '✔️' : '✖️'}</td>
                 <td>
                   <button
                     type="button"
