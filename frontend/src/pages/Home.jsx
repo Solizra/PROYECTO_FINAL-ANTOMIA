@@ -34,30 +34,30 @@ function Home() {
       try { setTrends(JSON.parse(saved)); return; } catch {}
     }
 
-    // Si no hay datos en localStorage, cargar los Trends guardados en BDD
-    (async () => {
-      try {
-        const res = await fetch('http://localhost:3000/api/Trends');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((t, idx) => ({
-            id: t.id ?? idx,
-            newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
-            newsletterId: t.id_newsletter ?? '',
-            fechaRelacion: t.Fecha_Relación || '',
-            trendTitulo: t.Título_del_Trend || '',
-            trendLink: t.Link_del_Trend || '',
-            relacionado: !!t.Relacionado,
-            newsletterLink: '',
-            analisisRelacion: t.Analisis_relacion || '',
-            resumenFama: '',
-            autor: '',
-          }));
-          setTrends(sortByDateDesc(mapped));
-        }
-      } catch {}
-    })();
+            // Si no hay datos en localStorage, cargar los Trends guardados en BDD
+        (async () => {
+          try {
+            const res = await fetch('http://localhost:3000/api/Trends');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              const mapped = data.map((t, idx) => ({
+                id: t.id ?? idx,
+                newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
+                newsletterId: t.id_newsletter ?? '',
+                fechaRelacion: t.Fecha_Relación || '',
+                trendTitulo: t.Título_del_Trend || '',
+                trendLink: t.Link_del_Trend || '',
+                relacionado: !!t.Relacionado,
+                newsletterLink: '',
+                analisisRelacion: t.Analisis_relacion || '',
+                resumenFama: '',
+                autor: '',
+              }));
+              setTrends(sortByDateDesc(mapped));
+            }
+          } catch {}
+        })();
   }, []);
 
   useEffect(() => {
@@ -325,7 +325,7 @@ function Home() {
         relacionado: !!t.Relacionado,
         newsletterLink: '',
         analisisRelacion: t.Analisis_relacion || '',
-        resumenFama: '',
+                   resumenFama: '',
         autor: '',
       }));
       
@@ -383,19 +383,34 @@ function Home() {
     return () => { isMounted = false; clearInterval(intervalId); };
   }, []);
 
-  const handleDelete = async (id) =>{
+  const handleDelete = async (id) => {
+    console.log('🗑️ Intentando eliminar trend con ID:', id);
+    
     // Optimista: quitar de UI
-    setTrends((prev) => prev.filter((trend) => trend.id !== id));
+    setTrends((prev) => {
+      const filtered = prev.filter((trend) => trend.id !== id);
+      console.log(`✅ Trend eliminado de UI. Total antes: ${prev.length}, después: ${filtered.length}`);
+      return filtered;
+    });
+    
     // Si es un id válido (número), intentar borrar en backend
     if (id !== undefined && id !== null && !isNaN(Number(id))) {
       try {
+        console.log(`🌐 Enviando DELETE a: http://localhost:3000/api/Trends/${id}`);
         const res = await fetch(`http://localhost:3000/api/Trends/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          console.error('Error al borrar trend en backend');
+        
+        if (res.ok) {
+          console.log('✅ Trend eliminado exitosamente del backend');
+        } else {
+          console.error('❌ Error al borrar trend en backend. Status:', res.status);
+          const errorData = await res.json().catch(() => ({}));
+          console.error('Error details:', errorData);
         }
       } catch (e) {
-        console.error('Error de conexión:', e);
+        console.error('❌ Error de conexión al eliminar trend:', e);
       }
+    } else {
+      console.warn('⚠️ ID inválido para eliminar:', id);
     }
   };
 
