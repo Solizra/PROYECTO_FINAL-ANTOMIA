@@ -12,6 +12,7 @@ function Home() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [sseConnected, setSseConnected] = useState(false);
   const [procesandoNoticias, setProcesandoNoticias] = useState(false);
   const [trendsCreados, setTrendsCreados] = useState(0);
@@ -427,6 +428,8 @@ function Home() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Error en el análisis');
 
+      console.log('🔍 Resultado del análisis manual:', data);
+
       // Si la API devolvió inserts (ids guardados), úsalo; sino usa map base
       const baseFilas = (data.newslettersRelacionados || []).map((nl, idx) => ({
         id: nl.id ?? idx,
@@ -441,6 +444,7 @@ function Home() {
         resumenFama: data.resumenFama || '',
         autor: data.autor || '',
       }));
+      
       const filas = (data.inserts && data.inserts.length > 0)
         ? data.inserts.map((ins, idx) => ({
             id: ins.id ?? idx,
@@ -457,8 +461,37 @@ function Home() {
           }))
         : (baseFilas.length > 0 ? baseFilas : []);
 
+      // Agregar a la tabla local
       setTrends((prev) => sortByDateDesc([...prev, ...filas]));
+      
+      // Mostrar mensaje de éxito
+      if (data.inserts && data.inserts.length > 0) {
+        const trendsCreados = data.inserts.length;
+        console.log(`✅ Se crearon ${trendsCreados} nuevos trends en la base de datos`);
+        
+        // Limpiar el input después de agregar exitosamente
+        setInput('');
+        
+        // Mostrar mensaje de éxito
+        setError('');
+        setSuccess(`✅ Se agregaron ${trendsCreados} nuevos trends a la tabla!`);
+        
+        // Limpiar mensaje de éxito después de 5 segundos
+        setTimeout(() => {
+          setSuccess('');
+        }, 5000);
+      } else if (data.esClimatech) {
+        console.log('ℹ️ Noticia clasificada como Climatech pero no se crearon trends');
+        setError('Noticia clasificada como Climatech pero no se crearon trends');
+        setSuccess('');
+      } else {
+        console.log('ℹ️ Noticia no clasificada como Climatech');
+        setError('La noticia no fue clasificada como Climatech');
+        setSuccess('');
+      }
+      
     } catch (e) {
+      console.error('❌ Error en análisis manual:', e);
       setError(e.message || 'Error inesperado');
     } finally {
       setLoading(false);
@@ -489,22 +522,31 @@ function Home() {
               {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
             </span>
             <button 
-              onClick={() => {
-                console.log('🧪 Probando conexión SSE...');
-                console.log('📊 Trends actuales:', trends.length);
-                cargarTrendsDesdeBDD();
+              onClick={async () => {
+                try {
+                  console.log('🧪 Ejecutando búsqueda manual de noticias...');
+                  const response = await fetch('http://localhost:3000/api/news/search-now', {
+                    method: 'POST'
+                  });
+                  const data = await response.json();
+                  console.log('✅ Búsqueda manual ejecutada:', data);
+                  alert(`Búsqueda ejecutada: ${data.message}`);
+                } catch (error) {
+                  console.error('❌ Error en búsqueda manual:', error);
+                  alert('Error ejecutando búsqueda manual');
+                }
               }}
               style={{ 
                 marginLeft: '10px', 
                 padding: '5px 10px', 
-                background: '#007bff', 
+                background: '#28a745', 
                 color: 'white', 
                 border: 'none', 
                 borderRadius: '4px',
                 cursor: 'pointer'
               }}
             >
-              🔄 Recargar
+              🔍 Buscar Noticias
             </button>
                          {procesandoNoticias && (
                <div className="processing-indicator">
@@ -573,21 +615,52 @@ function Home() {
         </table>
 
         <div className="footer">
-          <p>Pegá el link de una noticia o escribe texto para analizar</p>
+          <p>🔗 Pega el link de una noticia climatech</p>
           <div className="input-wrapper">
             <input
               type="text"
-              placeholder="https://..."
+              placeholder="https://ejemplo.com/noticia-climatech..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setError('');
+                setSuccess('');
+              }}
               onKeyDown={(e) => { if (e.key === 'Enter') analizar(); }}
               disabled={loading}
             />
             <button onClick={analizar} disabled={loading}>
-              {loading ? 'Analizando...' : 'Analizar'}
+              {loading ? '⏳ Analizando...' : 'Analizar'}
             </button>
           </div>
-          {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
+          {loading && (
+            <div style={{ 
+              marginTop: '10px', 
+              textAlign: 'center', 
+              color: '#666',
+              fontSize: '14px'
+            }}>
+              ⏳ Analizando contenido del link...
+            </div>
+          )}
+          {error && (
+            <p style={{ 
+              color: error.includes('✅') ? 'green' : 'red', 
+              marginTop: 8,
+              fontWeight: error.includes('✅') ? 'bold' : 'normal'
+            }}>
+              {error}
+            </p>
+          )}
+          {success && (
+            <p style={{ 
+              color: 'green', 
+              marginTop: 8,
+              fontWeight: 'bold'
+            }}>
+              {success}
+            </p>
+          )}
         </div>
       </main>
     </div>

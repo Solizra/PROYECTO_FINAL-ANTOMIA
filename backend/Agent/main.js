@@ -12,7 +12,7 @@ const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // (eliminado) extractFirstUrl: no se usa
 
-// Palabras clave para detectar Climatech
+// Palabras clave para detectar Climatech - MEJORADAS y sincronizadas
 const CLIMATECH_KEYWORDS = [
   // Energías renovables
   'solar', 'eólica', 'hidroeléctrica', 'renovable', 'energía limpia', 'paneles solares',
@@ -48,7 +48,21 @@ const CLIMATECH_KEYWORDS = [
   
   // Términos generales
   'clima', 'medio ambiente', 'sostenibilidad', 'verde', 'ecológico',
-  'ambiental', 'sustentable', 'climatech', 'cleantech'
+  'ambiental', 'sustentable', 'climatech', 'cleantech',
+  
+  // NUEVOS: Términos ambientales y de sostenibilidad
+  'impacto ambiental', 'conservación ambiental', 'desarrollo sostenible',
+  'biodiversidad', 'ecosistemas', 'humedales', 'conservación natural',
+  'recursos naturales', 'protección ambiental', 'gestión ambiental',
+  'minería sostenible', 'minería verde', 'minería responsable',
+  'litio', 'baterías', 'energía limpia', 'transición energética',
+  'adaptación climática', 'mitigación climática', 'energías alternativas',
+  'agua', 'gestión hídrica', 'sequía', 'desertificación',
+  'construcción verde', 'edificios sostenibles', 'arquitectura bioclimática',
+  'logística verde', 'industria 4.0', 'tecnología limpia',
+  'economía verde', 'empleos verdes', 'inversión responsable',
+  'ESG', 'criterios ambientales', 'finanzas verdes',
+  'política ambiental', 'regulación climática', 'acuerdos ambientales'
 ];
 
 // Stopwords básicas en español para mejorar la similitud
@@ -285,7 +299,7 @@ function generarResumenLocal(contenido) {
 // Función para determinar si es Climatech usando análisis de palabras clave
 function determinarSiEsClimatechLocal(contenido) {
   try {
- //   console.log(`🔍 Evaluando si es Climatech (análisis local)...`);
+    console.log(`🔍 Evaluando si es Climatech (análisis local)...`);
     
     const contenidoLower = contenido.toLowerCase();
     let puntuacion = 0;
@@ -302,11 +316,13 @@ function determinarSiEsClimatechLocal(contenido) {
     // Calcular densidad de palabras clave
     const densidad = puntuacion / (contenido.split(' ').length / 100); // palabras por 100
     
-    const esClimatech = puntuacion >= 3 || densidad >= 2; // Al menos 3 palabras clave o densidad alta
+    // Criterios más inclusivos para clasificar como climatech
+    const esClimatech = puntuacion >= 2 || densidad >= 1.5; // Bajado de 3 a 2 palabras clave
     
-   // console.log(`✅ Evaluación local: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
-   // console.log(`📊 Puntuación: ${puntuacion} palabras clave encontradas`);
-   // console.log(`🔍 Palabras encontradas: ${palabrasEncontradas.join(', ')}`);
+    console.log(`✅ Evaluación local: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
+    console.log(`📊 Puntuación: ${puntuacion} palabras clave encontradas`);
+    console.log(`🔍 Palabras encontradas: ${palabrasEncontradas.join(', ')}`);
+    console.log(`📈 Densidad: ${densidad.toFixed(2)} palabras por 100`);
     
     return esClimatech;
   } catch (error) {

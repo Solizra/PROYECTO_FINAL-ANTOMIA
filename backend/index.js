@@ -86,6 +86,26 @@ app.get('/api/events/stats', (req, res) => {
   res.json(eventBus.getStats());
 });
 
+// Endpoint manual para probar la búsqueda de noticias
+app.post('/api/news/search-now', async (req, res) => {
+  try {
+    console.log('🧪 Búsqueda manual de noticias solicitada...');
+    const { buscarNoticias } = await import('./APIs/buscarNoticias.mjs');
+    const resultado = await buscarNoticias();
+    res.json({ 
+      success: true, 
+      message: 'Búsqueda de noticias ejecutada manualmente',
+      resultado: resultado.length
+    });
+  } catch (error) {
+    console.error('❌ Error en búsqueda manual:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   // Iniciar scheduler que busca noticias y las procesa con el agente automáticamente
