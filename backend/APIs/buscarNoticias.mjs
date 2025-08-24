@@ -17,26 +17,7 @@ function restarDias(fecha, dias) {
 
 // 🔍 Query mejorada para buscar noticias más relevantes de climatech
 const query = `(
-  "climate tech" OR "climate technology" OR "cleantech" OR "green tech" OR
-  "carbon capture" OR "carbon removal" OR "direct air capture" OR
-  "green hydrogen" OR "clean hydrogen" OR "hydrogen economy" OR
-  "battery breakthrough" OR "energy storage" OR "grid storage" OR
-  "renewable energy innovation" OR "solar breakthrough" OR "wind innovation" OR
-  "electric vehicle innovation" OR "EV charging" OR "battery technology" OR
-  "sustainable aviation" OR "clean shipping" OR "green transport" OR
-  "circular economy" OR "waste reduction" OR "recycling innovation" OR
-  "AI climate solutions" OR "machine learning climate" OR "climate AI" OR
-  "carbon credits" OR "carbon trading" OR "climate finance" OR
-  "net zero" OR "carbon neutral" OR "climate positive" OR
-  "climate tech funding" OR "climate tech investment" OR "climate tech startup" OR
-  "environmental impact" OR "sustainability" OR "biodiversity conservation" OR
-  "ecosystem protection" OR "natural resources" OR "environmental management" OR
-  "sustainable mining" OR "green mining" OR "responsible mining" OR
-  "lithium mining" OR "battery materials" OR "clean energy transition" OR
-  "climate change adaptation" OR "climate change mitigation" OR
-  "green technology" OR "environmental innovation" OR "water management" OR
-  "sustainable agriculture" OR "green building" OR "sustainable mobility" OR
-  "green economy" OR "ESG" OR "environmental policy" OR "climate regulation"
+  "medio ambiente" OR "adaptación climática" OR "regulación climática" OR "cambio climático" OR "eficiencia energética" OR "emisiones" OR sostenibilidad OR "energía renovable" OR "energias renovables" OR climatech OR cleantech OR "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular" OR "tecnología climática" OR "captura de carbono" OR "Inteligencia Artificial" OR IA OR "IA climática" OR "finanzas climáticas" OR "cero neto" OR "transición energética" OR ESG
 )`;
 
 // 📰 Medios confiables (dominios) para restringir resultados - MEJORADOS para climatech
@@ -81,7 +62,6 @@ const trustedDomains = [
   
   // Fuentes en español confiables
   'elpais.com',
-  'elmundo.es',
   'elconfidencial.com',
   'eldiario.es',
   'nationalgeographic.com',
