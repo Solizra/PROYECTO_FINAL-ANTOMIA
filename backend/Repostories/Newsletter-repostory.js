@@ -6,7 +6,10 @@ export default class NewsletterRepository {
   getAllAsync = async ({ id, link, Resumen, titulo, page, limit }) => {
     let newsletters = [];
     const client = new Client(DBConfig);
-    const offset = (page - 1) * limit;
+    
+    // Si el límite es muy alto (>1000), ignorar paginación y traer todos
+    const usePagination = limit && limit <= 1000;
+    const offset = usePagination ? (page - 1) * limit : 0;
 
     try {
       await client.connect();
@@ -34,8 +37,13 @@ export default class NewsletterRepository {
         params.push(`%${titulo}%`);
       }
 
-      sql += ` ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      params.push(limit, offset);
+      sql += ` ORDER BY id DESC`;
+      
+      // Solo aplicar LIMIT y OFFSET si se usa paginación
+      if (usePagination) {
+        sql += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(limit, offset);
+      }
 
       const result = await client.query(sql, params);
       newsletters = result.rows;

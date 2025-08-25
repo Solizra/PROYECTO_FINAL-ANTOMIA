@@ -332,17 +332,24 @@ function determinarSiEsClimatechLocal(contenido) {
 }
 
 // Función para obtener newsletters de la base de datos
-async function obtenerNewslettersBDD() {
+export async function obtenerNewslettersBDD() {
   try {
     console.log(`📥 Obteniendo newsletters de la base de datos...`);
     
-    const response = await fetch('http://localhost:3000/api/Newsletter');
+    // Solicitar todos los newsletters sin límite de paginación
+    const response = await fetch('http://localhost:3000/api/Newsletter?limit=10000&page=1');
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
     }
     
     const newsletters = await response.json();
     console.log(`✅ Se obtuvieron ${newsletters.length} newsletters de la BDD`);
+    
+    // Log adicional para confirmar que se obtuvieron todos
+    if (newsletters.length > 0) {
+      console.log(`📊 Primer newsletter: ${newsletters[0].titulo}`);
+      console.log(`📊 Último newsletter: ${newsletters[newsletters.length - 1].titulo}`);
+    }
     
     return newsletters;
   } catch (error) {
@@ -360,6 +367,9 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
       console.log(`⚠️ No hay newsletters en la base de datos para comparar`);
       return [];
     }
+
+    // Log adicional para confirmar que se procesan todos los newsletters
+    console.log(`📊 Procesando todos los ${newsletters.length} newsletters para encontrar coincidencias...`);
 
     const tokensResumen = tokenize(resumenNoticia);
     const bigramResumen = bigrams(tokensResumen);
@@ -440,7 +450,7 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
     .slice(0, 3)
     .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
 
-    console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados)`);
+    console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados de ${newsletters.length} evaluados)`);
     if (newslettersScored.length > 0) return newslettersScored;
 
     // Fallback menos estricto para no perder candidatos
@@ -460,7 +470,7 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
     .slice(0, 2)
     .map(nl => ({ ...nl, puntuacion: Math.round((nl._tri + nl._big) * 100) }));
 
-    console.log(`ℹ️ Fallback estricto: ${fallback.length} newsletters`);
+    console.log(`ℹ️ Fallback estricto: ${fallback.length} newsletters (de ${newsletters.length} evaluados)`);
     return fallback;
   } catch (error) {
     console.error(`❌ Error comparando newsletters: ${error.message}`);

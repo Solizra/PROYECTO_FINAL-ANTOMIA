@@ -63,7 +63,6 @@ const trustedDomains = [
   // Fuentes en español confiables
   'elpais.com',
   'elconfidencial.com',
-  'eldiario.es',
   'nationalgeographic.com',
   'ambito.com',
   'infobae.com'
@@ -137,7 +136,7 @@ function calculateNewsScore(article) {
       score += 15;
     }
     // Fuentes en español confiables
-    else if (['elpais.com', 'elmundo.es', 'elconfidencial.com', 'eldiario.es'].includes(hostname)) {
+    else if (['elpais.com', 'elmundo.es', 'elconfidencial.com'].includes(hostname)) {
       score += 12;
     }
     // Otras fuentes confiables
@@ -219,7 +218,7 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
   try {
     // Calcular el rango de fechas en cada ejecución (ventana móvil)
     const fechaActual = new Date();
-    const fromDate = restarDias(fechaActual, 7);
+    const fromDate = restarDias(fechaActual, 30);
     const pageSize = Math.min(Math.max(parseInt(maxResults, 10) || 20, 1), 100);
     const fromDateISO = (fromDate instanceof Date ? fromDate : new Date(fromDate))
       .toISOString()
@@ -230,7 +229,7 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
     const url = `https://newsapi.org/v2/everything?` +
       `q=${encodeURIComponent(query.replace(/\s+/g, ' '))}` +
       `&searchIn=title,description,content` +
-      `&from=${fromDateISO}` +
+      `&from=${fromDate}` +
       `&language=${language}` +
       `&sortBy=${sortBy}` +
       `&pageSize=${pageSize}` +
