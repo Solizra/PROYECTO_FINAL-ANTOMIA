@@ -279,51 +279,120 @@ async function extraerContenidoNoticia(url) {
 // Función para generar resumen usando análisis de texto local
 function generarResumenLocal(contenido) {
   try {
-   // console.log(`📝 Generando resumen local...`);
-    
-    // Dividir en oraciones
-    const oraciones = contenido.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    // Dividir en oraciones básicas
+    const oraciones = String(contenido || '')
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 10);
 
-    // Seleccionar las primeras 3 oraciones más relevantes
-    const resumen = oraciones.slice(0, 3).join('. ').trim();
+    let resumenPartes = [];
+    let acumulado = 0;
 
-   // console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
-    
-    return resumen + '.';
+    for (const oracion of oraciones) {
+      const pieza = (oracion.endsWith('.') ? oracion : `${oracion}.`);
+      resumenPartes.push(pieza);
+      acumulado += pieza.length + 1;
+      if (acumulado >= 1500) break;
+    }
+
+    // Si las oraciones no alcanzan 500 chars, completar con un recorte del contenido
+    let resumen = resumenPartes.join(' ').trim();
+    if (resumen.length < 1500) {
+      const faltante = 1500 - resumen.length;
+      const extra = String(contenido || '')
+        .slice(0, Math.min(1200, faltante + 200))
+        .replace(/\s+/g, ' ')
+        .trim();
+      resumen = `${resumen} ${extra}`.trim();
+    }
+
+    // Cap razonable para no devolver textos excesivamente largos
+    if (resumen.length > 2500) {
+      resumen = resumen.slice(0, 1500).trim();
+      if (!/[.!?]$/.test(resumen)) resumen += '...';
+    }
+
+    // Asegurar punto final
+    if (!/[.!?]$/.test(resumen)) resumen += '.';
+
+    console.log(`📝 Resumen generado (${resumen.length} chars)`);
+    return resumen;
   } catch (error) {
     console.error(`❌ Error generando resumen: ${error.message}`);
     return 'No se pudo generar el resumen.';
   }
 }
 
-// Función para determinar si es Climatech usando análisis de palabras clave
-function determinarSiEsClimatechLocal(contenido) {
+// Función para determinar si es Climatech usando un modelo heurístico ponderado
+function determinarSiEsClimatechLocal(contenido, titulo = '') {
   try {
-    console.log(`🔍 Evaluando si es Climatech (análisis local)...`);
-    
-    const contenidoLower = contenido.toLowerCase();
-    let puntuacion = 0;
-    const palabrasEncontradas = [];
-    
-    // Contar coincidencias de palabras clave
-    CLIMATECH_KEYWORDS.forEach(keyword => {
-      if (contenidoLower.includes(keyword.toLowerCase())) {
-        puntuacion += 1;
-        palabrasEncontradas.push(keyword);
-      }
-    });
-    
-    // Calcular densidad de palabras clave
-    const densidad = puntuacion / (contenido.split(' ').length / 100); // palabras por 100
-    
-    // Criterios más inclusivos para clasificar como climatech
-    const esClimatech = puntuacion >= 2 || densidad >= 1.5; // Bajado de 3 a 2 palabras clave
-    
-    console.log(`✅ Evaluación local: ${esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
-    console.log(`📊 Puntuación: ${puntuacion} palabras clave encontradas`);
-    console.log(`🔍 Palabras encontradas: ${palabrasEncontradas.join(', ')}`);
-    console.log(`📈 Densidad: ${densidad.toFixed(2)} palabras por 100`);
-    
+    console.log(`🔍 Evaluando si es Climatech (modelo heurístico)...`);
+
+    const texto = String(contenido || '');
+    const textoNorm = normalizeText(texto);
+    const tituloNorm = normalizeText(String(titulo || ''));
+
+    // 1) Palabras clave ponderadas (fuerte, media, débil)
+    const strongKeywords = ['climatech','cleantech','energias renovables','energía renovable','hidrógeno verde','captura de carbono','secuestro de carbono','movilidad sostenible','economia circular','economía circular'];
+    const mediumKeywords = ['solar','eolica','eólica','hidroelectrica','hidroeléctrica','geotermica','geotérmica','vehiculo electrico','coche electrico','paneles solares','turbinas eolicas','turbinas eólicas','emisiones','neutralidad de carbono'];
+    const weakKeywords = ['sostenible','sustentable','verde','ambiental','medio ambiente','transicion energetica','transición energética','esg'];
+
+    let kwScoreRaw = 0;
+    const foundKeywords = [];
+    for (const kw of strongKeywords) { if (textoNorm.includes(kw)) { kwScoreRaw += 3; foundKeywords.push(kw); } }
+    for (const kw of mediumKeywords) { if (textoNorm.includes(kw)) { kwScoreRaw += 2; foundKeywords.push(kw); } }
+    for (const kw of weakKeywords) { if (textoNorm.includes(kw)) { kwScoreRaw += 1; foundKeywords.push(kw); } }
+
+    // 2) Densidad de palabras climatech por cada 100 palabras
+    const totalWords = Math.max(1, texto.split(/\s+/).length);
+    const densityPer100 = (foundKeywords.length) / (totalWords / 100);
+
+    // 3) Tags temáticos (usando sinónimos definidos)
+    const tags = extractThematicTags(texto);
+    const tagCount = tags.size; // 0..N
+
+    // 4) Co-ocurrencias fuertes: IA + (agua o energía)
+    const hasAI = hasAnyTerm(textoNorm, AI_TERMS);
+    const hasWater = hasAnyTerm(textoNorm, WATER_TERMS);
+    const hasEnergy = hasAnyTerm(textoNorm, ENERGY_TERMS);
+    const cooccurBonus = (hasAI && (hasWater || hasEnergy)) ? 0.2 : 0;
+
+    // 5) Presencia en el título
+    let titleBonus = 0;
+    if (tituloNorm) {
+      if (strongKeywords.some(k => tituloNorm.includes(k))) titleBonus = 0.2;
+      else if (mediumKeywords.some(k => tituloNorm.includes(k))) titleBonus = 0.1;
+      else if (weakKeywords.some(k => tituloNorm.includes(k))) titleBonus = 0.05;
+    }
+
+    // 6) Normalizaciones de puntajes parciales
+    const kwScore = Math.min(1, kwScoreRaw / 10); // saturación a partir de ~10 puntos
+    const densityScore = Math.min(1, densityPer100 / 3); // 3 ocurrencias por 100 palabras ~ 1.0
+    const tagScore = Math.min(1, tagCount / 3); // 3+ tags temáticos ~ 1.0
+
+    // 7) Score final
+    let finalScore = 0.5 * kwScore + 0.25 * densityScore + 0.25 * tagScore + cooccurBonus + titleBonus;
+    finalScore = Math.min(finalScore, 1);
+
+    // 8) Reglas adicionales (evitar falsos positivos):
+    const passesRules = (
+      (tagCount >= 1 || (hasWater || hasEnergy)) && // Al menos un tag o pertenecer a agua/energía
+      (foundKeywords.length >= 2 || densityPer100 >= 1.0) // Mínimo 2 keywords o densidad razonable
+    );
+
+    const threshold = 0.45; // umbral base
+    const esClimatech = (finalScore >= threshold) && passesRules;
+
+    console.log(`📊 Score climatech: ${(finalScore * 100).toFixed(1)}% | tags=${tagCount} | kwFound=${foundKeywords.length} | dens=${densityPer100.toFixed(2)} /100`);
+    if (hasAI) console.log('🤖 Co-ocurrencia: IA detectada');
+    if (hasWater) console.log('💧 Co-ocurrencia: Agua detectada');
+    if (hasEnergy) console.log('⚡ Co-ocurrencia: Energía detectada');
+    if (titleBonus > 0) console.log(`📰 Bonus por título: +${(titleBonus*100).toFixed(0)} puntos`);
+    if (cooccurBonus > 0) console.log(`➕ Bonus por co-ocurrencia IA+agua/energía: +${(cooccurBonus*100).toFixed(0)} puntos`);
+    console.log(`🔍 Palabras detectadas: ${foundKeywords.join(', ')}`);
+    console.log(`🏷️ Tags: ${[...tags].join(', ')}`);
+    console.log(`✅ Evaluación final: ${esClimatech ? 'SÍ' : 'NO'}`);
+
     return esClimatech;
   } catch (error) {
     console.error(`❌ Error evaluando Climatech: ${error.message}`);
@@ -362,6 +431,8 @@ export async function obtenerNewslettersBDD() {
 function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '') {
   try {
     console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters (análisis local mejorado)...`);
+    console.log(`🔗 URL de la noticia: ${urlNoticia || 'No disponible'}`);
+    console.log(`📝 Resumen de la noticia: ${resumenNoticia.substring(0, 2000)}${resumenNoticia.length > 1500 ? '...' : ''}`);
     
     if (newsletters.length === 0) {
       console.log(`⚠️ No hay newsletters en la base de datos para comparar`);
@@ -387,14 +458,25 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
       .slice(0, 10)
       .map(([term]) => term);
     const topKeywordSet = new Set(topKeywords);
+    
+    console.log(`🔑 Palabras clave extraídas del resumen (top 10): ${topKeywords.join(', ')}`);
+    console.log(`🏷️ Tags temáticos detectados: ${[...tagsResumen].join(', ')}`);
+    console.log(`\n📊 Iniciando comparación detallada con cada newsletter...\n`);
 
-    const newslettersScored = newsletters.map((newsletter) => {
+    const scoredAll = newsletters.map((newsletter, index) => {
       const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
       const linkDoc = newsletter.link || newsletter.url || '';
       const isExactUrlMatch = linkDoc && urlNoticia && (linkDoc === urlNoticia);
       const sameHost = hostNoticia && linkDoc && (getHost(linkDoc) === hostNoticia);
+      
+      // Log detallado para cada newsletter
+      console.log(`\n📧 Newsletter ${index + 1}/${newsletters.length}:`);
+      console.log(`   📰 Título: ${newsletter.titulo || 'Sin título'}`);
+      console.log(`   🔗 Link: ${linkDoc || 'No disponible'}`);
+      console.log(`   🆔 ID: ${newsletter.id}`);
 
       if (isExactUrlMatch) {
+        console.log(`   ✅ COINCIDENCIA EXACTA DE URL - Score: 100%`);
         return { ...newsletter, _score: 1, _matchesTop: 10, _tagOverlap: 1, _triJacc: 1, _bigJacc: 1, _cos: 1, _entityOverlapCount: 3, _forced: true };
       }
       const tokensDoc = tokenize(textoDoc);
@@ -427,33 +509,72 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
       const coAIWater = (resumenAI && docAI && resumenWater && docWater) ? 0.08 : 0;
       const coAIEnergy = (resumenAI && docAI && resumenEnergy && docEnergy) ? 0.06 : 0;
 
-      const baseScore = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
+      const baseScore = 0.3 * cos + 0.1 * bigJacc + 0.6 * Math.min(tagOverlap, 1);
+      //const baseScore = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
       const score = Math.min(baseScore + (sameHost ? 0.12 : 0) + coAIWater + coAIEnergy, 1);
 
       // Guardar detalles de coincidencias
       const matchedTopArr = topKeywords.filter(t => tokensDoc.includes(t));
       const matchedTagsArr = [...tagsResumen].filter(t => extractThematicTags(textoDoc).has(t));
 
-      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr, _sameHost: sameHost };
-    })
-    // Gating más flexible: baja umbrales para aumentar recall
-    .filter(nl => (
-      nl._forced === true || (
-        (nl._sameHost ? nl._score >= 0.12 : nl._score >= 0.15) &&
-        nl._matchesTop >= 2 &&
-        (nl._bigJacc >= 0.05 || nl._triJacc >= 0.02) &&
-        nl._tagOverlap >= 0.15 &&
-        nl._entityOverlapCount >= 0
-      )
-    ))
-    .sort((a, b) => b._score - a._score)
-    .slice(0, 3)
-    .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
+      // Log detallado de métricas de similitud
+      console.log(`   📊 Métricas de similitud:`);
+      console.log(`      🏷️ Overlap de tags: ${(tagOverlap * 100).toFixed(1)}%`);
+      console.log(`      🔑 Palabras clave coincidentes: ${matchesTop}/${topKeywords.length}`);
+      
+      if (matchedTopArr.length > 0) {
+        console.log(`      🎯 Palabras clave coincidentes: ${matchedTopArr.join(', ')}`);
+      }
+      if (matchedTagsArr.length > 0) {
+        console.log(`      🏷️ Tags temáticos coincidentes: ${matchedTagsArr.join(', ')}`);
+      }
 
+      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr, _sameHost: sameHost, _linkDoc: linkDoc };
+    });
+
+    const passesGating = (nl) => (
+      nl._forced === true || (
+        nl._matchesTop >= 1 &&
+        (nl._bigJacc >= 0.01) &&
+        nl._tagOverlap >= 0.10
+      )
+    );
+
+    // Log de rechazados con motivo
+    const rejected = scoredAll.filter(nl => !passesGating(nl));
+    if (rejected.length > 0) {
+      console.log(`\n🚫 Newsletters rechazados por el gating: ${rejected.length}`);
+      rejected.slice(0, 10).forEach((nl, idx) => {
+        const reasons = [];
+        if (!(nl._sameHost ? nl._score >= 0.10 : nl._score >= 0.12)) reasons.push(`score=${(nl._score*100).toFixed(1)}%`);
+        if (!(nl._matchesTop >= 1)) reasons.push(`matchesTop=${nl._matchesTop}`);
+        if (!((nl._bigJacc >= 0.03) || (nl._triJacc >= 0.01))) reasons.push(`ngrams big=${(nl._bigJacc*100).toFixed(1)}% tri=${(nl._triJacc*100).toFixed(1)}%`);
+        if (!(nl._tagOverlap >= 0.10)) reasons.push(`tagOverlap=${(nl._tagOverlap*100).toFixed(1)}%`);
+        console.log(`   [${idx+1}] ${nl.titulo || 'Sin título'} | link=${nl._linkDoc || ''} | motivos: ${reasons.join(' | ')}`);
+      });
+      if (rejected.length > 10) console.log(`   ... y ${rejected.length - 10} más`);
+    }
+
+    const newslettersScored = scoredAll
+      .filter(passesGating)
+      .sort((a, b) => b._score - a._score)
+      .slice(0, 3)
+      .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
+
+    console.log(`\n🎯 RESULTADOS DEL FILTRADO:`);
     console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados de ${newsletters.length} evaluados)`);
+    
+    if (newslettersScored.length > 0) {
+      console.log(`\n🏆 TOP ${newslettersScored.length} NEWSLETTERS SELECCIONADOS:`);
+      newslettersScored.forEach((nl, index) => {
+        console.log(`   ${index + 1}. ${nl.titulo} (Score: ${nl.puntuacion}%) id=${nl.id ?? 'null'}`);
+        console.log(`      🔗 Link: ${nl.link || nl._linkDoc || 'No disponible'}`);
+      });
+    }
     if (newslettersScored.length > 0) return newslettersScored;
 
     // Fallback menos estricto para no perder candidatos
+    console.log(`\n🔄 EJECUTANDO FALLBACK (criterios menos estrictos)...`);
     const fallback = newsletters.map((newsletter) => {
       const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
       const tokensDoc = tokenize(textoDoc);
@@ -467,15 +588,48 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
     })
     .filter(nl => (nl._tri >= 0.015 || nl._big >= 0.08) && nl._kw >= 2)
     .sort((a, b) => (b._tri + b._big) - (a._tri + a._big))
-    .slice(0, 2)
+    .slice(0, 3)
     .map(nl => ({ ...nl, puntuacion: Math.round((nl._tri + nl._big) * 100) }));
 
     console.log(`ℹ️ Fallback estricto: ${fallback.length} newsletters (de ${newsletters.length} evaluados)`);
-    return fallback;
+    
+    if (fallback.length > 0) {
+      console.log(`\n🔄 NEWSLETTERS DEL FALLBACK:`);
+      fallback.forEach((nl, index) => {
+        console.log(`   ${index + 1}. ${nl.titulo} (Score: ${nl.puntuacion}%)`);
+        console.log(`      🔗 Link: ${nl.link || 'No disponible'}`);
+      });
+    }
+    
+    if (fallback.length > 0) return fallback;
+
+    // Soft-fallback: elegir el mejor candidato por tags/coseno si nada pasó
+    console.log(`\n🟡 SOFT-FALLBACK: seleccionando mejor candidato por tags/coseno...`);
+    const soft = scoredAll
+      .map(nl => ({ ...nl, _softScore: 0.7 * (nl._tagOverlap || 0) + 0.3 * (nl._cos || 0) }))
+      .filter(nl => (nl._matchesTop >= 1) || (nl._tagOverlap >= 0.03))
+      .sort((a,b) => b._softScore - a._softScore)
+      .slice(0, 1)
+      .map(nl => ({ ...nl, puntuacion: Math.round((nl._softScore) * 100), _forcedSoft: true }));
+
+    if (soft.length > 0) {
+      const s = soft[0];
+      console.log(`   ✅ Soft-related: ${s.titulo} | softScore=${(s._softScore*100).toFixed(1)}% | tagOverlap=${(s._tagOverlap*100).toFixed(1)}% | cos=${(s._cos*100).toFixed(1)}%`);
+      return soft;
+    }
+
+    console.log(`   ⚪ Ningún candidato razonable encontrado incluso con soft-fallback.`);
+    return [];
   } catch (error) {
     console.error(`❌ Error comparando newsletters: ${error.message}`);
     return [];
   }
+  
+  // Log final del proceso
+  console.log(`\n🎉 PROCESO DE COMPARACIÓN COMPLETADO`);
+  console.log(`📊 Total de newsletters procesados: ${newsletters.length}`);
+  console.log(`🔍 URL analizada: ${urlNoticia || 'No disponible'}`);
+  console.log(`📝 Resumen analizado: ${resumenNoticia.substring(0, 100)}${resumenNoticia.length > 100 ? '...' : ''}`);
 }
 
 // Función para determinar tema principal usando análisis de texto
@@ -556,13 +710,22 @@ async function analizarNoticia(input) {
       }
 
       // PASO 4: Obtener newsletters de la BDD
+      console.log(`\n📥 PASO 4: Obteniendo newsletters de la base de datos...`);
       const newsletters = await obtenerNewslettersBDD();
 
       // PASO 5: Comparar noticia con newsletters
-    const newslettersRelacionados = compararConNewslettersLocal(resumen, newsletters);
+      console.log(`\n🔍 PASO 5: Comparando noticia con newsletters...`);
+      console.log(`📊 Total de newsletters obtenidos: ${newsletters.length}`);
+      console.log(`🔗 URL a comparar: ${input}`);
+      console.log(`📝 Resumen a comparar: ${resumen.substring(0, 150)}${resumen.length > 150 ? '...' : ''}`);
+      
+      const newslettersRelacionados = compararConNewslettersLocal(resumen, newsletters, input);
 
       // PASO 6: Preparar respuesta final
-    let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.
+      console.log(`\n📋 PASO 6: Preparando respuesta final...`);
+      console.log(`🎯 Newsletters relacionados encontrados: ${newslettersRelacionados.length}`);
+      
+      let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.
 
 📰 Título: ${titulo}
 📝 Resumen: ${resumen}
@@ -610,11 +773,13 @@ export async function analizarNoticiaEstructurada(input) {
     }
 
     const resumen = generarResumenLocal(contenido);
-    const esClimatech = determinarSiEsClimatechLocal(contenido);
+    const esClimatech = determinarSiEsClimatechLocal(contenido, titulo);
     let newsletters = [];
     let relacionados = [];
     if (esClimatech) {
+      console.log(`\n📥 Obteniendo newsletters para comparación...`);
       newsletters = await obtenerNewslettersBDD();
+      console.log(`🔍 Comparando con ${newsletters.length} newsletters...`);
       relacionados = compararConNewslettersLocal(resumen, newsletters, url);
     }
 
@@ -632,7 +797,15 @@ export async function analizarNoticiaEstructurada(input) {
       fechaPublicacion,
       resumenFama,
       newslettersRelacionados: relacionados.map(nl => ({
-        id: nl.id,
+        id: nl.id ?? (() => {
+          try {
+            const list = Array.isArray(newsletters) ? newsletters : [];
+            const byLink = list.find(x => (String(x.link || x.url || '').trim()) === (String(nl.link || '').trim()));
+            if (byLink && byLink.id) return byLink.id;
+            const byTitle = list.find(x => (String(x.titulo || '').trim()) === (String(nl.titulo || '').trim()));
+            return byTitle?.id ?? null;
+          } catch { return null; }
+        })(),
         titulo: nl.titulo,
         Resumen: nl.Resumen || '',
         link: nl.link || '',
