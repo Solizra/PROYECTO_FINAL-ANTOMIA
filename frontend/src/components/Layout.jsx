@@ -36,6 +36,12 @@ function Layout() {
             <li className={location.pathname === "/publicaciones" ? "active" : ""}>
               <Link to="/publicaciones">Publicaciones</Link>
             </li>
+            <li className={location.pathname === "/perfil" ? "active" : ""}>
+              <Link to="/perfil">Perfil</Link>
+            </li>
+            <li className={location.pathname === "/archivados" ? "active" : ""}>
+              <Link to="/archivados">Archivados</Link>
+            </li>
           </ul>
         </nav>
 
