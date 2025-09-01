@@ -101,28 +101,28 @@
 }
 
 /* ===== ANCHO DE COLUMNAS ESPECÍFICAS ===== */
-/* Columna 1: Checkbox/Info (más angosta) */
+/* Columna 1: Info */
 .trends-table th:nth-child(1),
 .trends-table td:nth-child(1) {
-  width: 40px;
+  width: 60px;
 }
 
-/* Columna 2: Título del Trend (50% más ancha) */
+/* Columna 2: Título del Trend */
 .trends-table th:nth-child(2),
 .trends-table td:nth-child(2) {
-  width: 35%; /* Aumentado para compensar columnas eliminadas */
+  width: 25%;
 }
 
-/* Columna 3: Link del Trend (50% más angosta) */
+/* Columna 3: Link del Trend */
 .trends-table th:nth-child(3),
 .trends-table td:nth-child(3) {
-  width: 20%; /* Aumentado para compensar columnas eliminadas */
+  width: 20%;
 }
 
 /* Columna 4: Nombre Newsletter Relacionado */
 .trends-table th:nth-child(4),
 .trends-table td:nth-child(4) {
-  width: 25%;
+  width: 20%;
 }
 
 /* Columna 5: Fecha Relación */
@@ -131,10 +131,16 @@
   width: 10%;
 }
 
-/* Columna 6: Eliminar */
+/* Columna 6: Archivar */
 .trends-table th:nth-child(6),
 .trends-table td:nth-child(6) {
-  width: 10%;
+  width: 80px;
+}
+
+/* Columna 7: Eliminar */
+.trends-table th:nth-child(7),
+.trends-table td:nth-child(7) {
+  width: 80px;
 }
 
 /* ===== ESTILOS PARA COLUMNAS ESPECÍFICAS ===== */
@@ -199,6 +205,19 @@
   color: #ff4c4c;
   font-size: 16px;
   cursor: pointer;
+}
+
+.archive-btn {
+  background: none;
+  border: none;
+  color: #28a745;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.archive-btn:hover {
+  transform: scale(1.1);
 }
 
 .footer {

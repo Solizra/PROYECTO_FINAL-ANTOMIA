@@ -1,0 +1,227 @@
+.body{
+  background-color: #1a1a1d;
+}
+.perfil-container {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: #1a1a1d;
+  color: white;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.perfil-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.perfil-header h1 {
+  font-size: 2.5rem;
+  color: #76f6ff;
+  margin-bottom: 0.5rem;
+}
+
+.perfil-header p {
+  color: #ccc;
+  font-size: 1.1rem;
+}
+
+.perfil-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+}
+
+.perfil-card {
+  background: #2a2a2e;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  border: 1px solid #444;
+}
+
+.perfil-avatar {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.avatar-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin: 0 auto;
+}
+
+.perfil-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.info-row, .form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.info-row label, .form-row label {
+  font-weight: 600;
+  color: #76f6ff;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-row span {
+  color: #ccc;
+  font-size: 1.1rem;
+  padding: 0.75rem;
+  background: #1a1a1d;
+  border-radius: 6px;
+  border: 1px solid #444;
+}
+
+.form-row input {
+  padding: 0.75rem;
+  border: 2px solid #444;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+  background: #1a1a1d;
+  color: white;
+}
+
+.form-row input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.edit-btn, .save-btn, .cancel-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+}
+
+.edit-btn {
+  border-color: 1px solid #76f6ff;
+  color: white;
+}
+
+.edit-btn:hover {
+  background: #5ec6ce;
+  transform: translateY(-1px);
+}
+
+.save-btn {
+  background: #28a745;
+  color: white;
+  margin-right: 1rem;
+}
+
+.save-btn:hover {
+  background: #218838;
+  transform: translateY(-1px);
+}
+
+.cancel-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.perfil-stats {
+  background: #2a2a2e;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  border: 1px solid #444;
+  height: fit-content;
+}
+
+.perfil-stats h3 {
+  color: #76f6ff;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-size: 1.3rem;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1.5rem;
+  background: #1a1a1d;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #76f6ff;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  color: #ccc;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.2rem;
+  color: #ccc;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .perfil-container {
+    padding: 1rem;
+  }
+  
+  .perfil-content {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .perfil-header h1 {
+    font-size: 2rem;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .save-btn, .cancel-btn {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+}

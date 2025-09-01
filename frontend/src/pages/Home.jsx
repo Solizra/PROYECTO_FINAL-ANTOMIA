@@ -384,6 +384,31 @@ function Home() {
     return () => { isMounted = false; clearInterval(intervalId); };
   }, []);
 
+  const handleArchive = (trend) => {
+    console.log('📁 Archivando trend:', trend);
+    
+    // Obtener archivados existentes
+    const archivados = JSON.parse(localStorage.getItem('archivados') || '[]');
+    
+    // Agregar el nuevo trend archivado
+    const trendArchivado = {
+      ...trend,
+      tipo: 'trend', // Agregar explícitamente el tipo
+      fechaArchivado: new Date().toISOString(),
+      estado: 'archivado'
+    };
+    
+    archivados.push(trendArchivado);
+    localStorage.setItem('archivados', JSON.stringify(archivados));
+    
+    // Remover de la tabla de trends
+    setTrends(prev => prev.filter(t => t.id !== trend.id));
+    
+    // Mostrar mensaje de éxito
+    setSuccess('✅ Trend archivado correctamente');
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
   const handleDelete = async (id) => {
     console.log('🗑️ Intentando eliminar trend con ID:', id);
     
@@ -565,13 +590,12 @@ function Home() {
         <table className="trends-table">
           <thead>
             <tr>
-              <th>
-                <input type="checkbox" />
-              </th>
+              <th>Info</th>
               <th>Título del Trend</th>
               <th>Link del Trend</th>
               <th>Nombre Newsletter Relacionado</th>
               <th>Fecha Relación</th>
+              <th>Archivar</th>
               <th>Eliminar</th>
             </tr>
           </thead>
@@ -596,6 +620,16 @@ function Home() {
                 </td>
                 <td>{trend.newsletterTitulo || '—'}</td>
                 <td>{trend.fechaRelacion ? new Date(trend.fechaRelacion).toLocaleString() : '—'}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="archive-btn"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleArchive(trend); }}
+                    title="Archivar trend"
+                  >
+                    ✅
+                  </button>
+                </td>
                 <td>
                   <button
                     type="button"
