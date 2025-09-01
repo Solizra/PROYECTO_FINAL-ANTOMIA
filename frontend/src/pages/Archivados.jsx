@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Archivados.css";
 import { supabase } from "../supabaseClient";
+import { Leaf } from "lucide-react";
 
 // Función para obtener datos del localStorage
 const getArchivadosFromStorage = () => {
@@ -120,7 +121,8 @@ function Archivados() {
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              marginLeft: '30px',
             }}
           >
             🧹 Limpiar

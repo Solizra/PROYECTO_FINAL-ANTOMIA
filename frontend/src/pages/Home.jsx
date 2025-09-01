@@ -70,7 +70,10 @@ function Home() {
     const cargarUltimasNoticias = async () => {
       try {
         const res = await fetch('http://localhost:3000/api/news/latest');
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.log('⚠️ Backend no disponible para cargar noticias');
+          return;
+        }
         const urls = await res.json();
         if (!Array.isArray(urls) || urls.length === 0) return;
 
@@ -131,9 +134,14 @@ function Home() {
         if (compactas.length) {
           setTrends((prev) => sortByDateDesc([...prev, ...compactas]));
         }
-      } catch (e) {
-        // silencioso para no afectar UI inicial
-      }
+              } catch (e) {
+          // Manejar errores de conexión silenciosamente
+          if (e.name === 'TypeError' && e.message.includes('fetch')) {
+            console.log('⚠️ Backend no disponible - Error de conexión');
+          } else {
+            console.log('⚠️ Error cargando noticias:', e.message);
+          }
+        }
     };
 
     // Solo si aún no hay tendencias cargadas en memoria
@@ -312,7 +320,10 @@ function Home() {
     try {
       console.log('🔄 Recargando trends desde la base de datos...');
       const res = await fetch('http://localhost:3000/api/Trends');
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.log('⚠️ Backend no disponible para cargar trends');
+        return;
+      }
       const data = await res.json();
       if (!Array.isArray(data)) return;
       
@@ -347,9 +358,13 @@ function Home() {
        } else {
          console.log('ℹ️ No hay trends en la base de datos');
        }
-    } catch (error) {
-      console.error('❌ Error cargando trends desde BDD:', error);
-    }
+         } catch (error) {
+       if (error.name === 'TypeError' && error.message.includes('fetch')) {
+         console.log('⚠️ Backend no disponible - Error de conexión');
+       } else {
+         console.error('❌ Error cargando trends desde BDD:', error);
+       }
+     }
   };
 
   // Fallback: refresco automático cada 60s desde la BDD (solo si no hay SSE)
@@ -358,7 +373,10 @@ function Home() {
     const cargarTrends = async () => {
       try {
         const res = await fetch('http://localhost:3000/api/Trends');
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.log('⚠️ Fallback: Backend no disponible');
+          return;
+        }
         const data = await res.json();
         if (!Array.isArray(data)) return;
         const mapped = data.map((t, idx) => ({
@@ -377,7 +395,11 @@ function Home() {
         if (isMounted && mapped.length) {
           setTrends(mapped);
         }
-      } catch {}
+      } catch (error) {
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          console.log('⚠️ Fallback: Backend no disponible - Error de conexión');
+        }
+      }
     };
 
     const intervalId = setInterval(cargarTrends, 60 * 1000);
@@ -539,13 +561,26 @@ function Home() {
       <main className="main-content">
         <div className="header-section">
           <h1 className="main-title">Últimos trends reconocidos</h1>
-          <div className="connection-status">
-            <span className={`status-indicator ${sseConnected ? 'connected' : 'disconnected'}`}>
-              {sseConnected ? '🟢' : '🔴'}
-            </span>
-            <span className="status-text">
-              {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
-            </span>
+                     <div className="connection-status">
+             <span className={`status-indicator ${sseConnected ? 'connected' : 'disconnected'}`}>
+               {sseConnected ? '🟢' : '🔴'}
+             </span>
+             <span className="status-text">
+               {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
+             </span>
+             {!sseConnected && (
+               <span className="backend-status" style={{ 
+                 marginLeft: '10px', 
+                 padding: '2px 8px', 
+                 background: '#ff6b6b', 
+                 color: 'white', 
+                 borderRadius: '12px', 
+                 fontSize: '12px',
+                 fontWeight: 'bold'
+               }}>
+                 ⚠️ Backend Offline
+               </span>
+             )}
             <button 
               onClick={async () => {
                 try {
