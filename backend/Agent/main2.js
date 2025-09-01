@@ -7,8 +7,7 @@ import TrendsService from '../Services/Trends-services.js';
 import eventBus from '../EventBus.js';
 
 import OpenAI from "openai";
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY});
-
+//const client = new OpenAI({ apiKey: "process.env.OPENAI_API_KEY"});
 
 // Configuración
 const DEBUG = false;
