@@ -115,13 +115,16 @@
 }
 
 .edit-btn {
-  border-color: 1px solid #76f6ff;
-  color: white;
+  background: transparent;
+  border: 2px solid #76f6ff;
+  color: #76f6ff;
 }
 
 .edit-btn:hover {
-  background: #5ec6ce;
+  background: #76f6ff;
+  color: #000;
   transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(118, 246, 255, 0.3);
 }
 
 .save-btn {
@@ -130,10 +133,25 @@
   margin-right: 1rem;
 }
 
-.save-btn:hover {
-  background: #218838;
-  transform: translateY(-1px);
-}
+  .save-btn:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+  }
+  
+  .save-btn:disabled {
+    background: #6c757d;
+    color: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .save-btn:disabled:hover {
+    background: #6c757d;
+    transform: none;
+    box-shadow: none;
+  }
 
 .cancel-btn {
   background: #6c757d;
@@ -143,6 +161,7 @@
 .cancel-btn:hover {
   background: #5a6268;
   transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
 }
 
 .form-actions {
@@ -192,6 +211,27 @@
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.email-info {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #1a1a1d;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.email-info h4 {
+  color: #76f6ff;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.email-info p {
+  color: #ccc;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0;
 }
 
 .loading {
