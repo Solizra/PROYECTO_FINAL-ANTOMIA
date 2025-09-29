@@ -1,3 +1,5 @@
+// ESTE ERA EL MAIN2.JS QUE AHORA ES MAIN PARA QUE USE ESTE
+
 import https from 'https';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
@@ -6,9 +8,56 @@ import { fileURLToPath } from 'url';
 import TrendsService from '../Services/Trends-services.js';
 import eventBus from '../EventBus.js';
 
+import OpenAI from "openai";
 // Configuración
 const DEBUG = false;
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+// Si estás detrás de un proxy con certificado self-signed, puedes habilitar
+// ALLOW_INSECURE_OPENAI=1 para que el SDK use el mismo httpsAgent permisivo
+const allowInsecureOpenAI = process.env.ALLOW_INSECURE_OPENAI === '1';
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  fetch: allowInsecureOpenAI ? (url, init = {}) => fetch(url, { ...init, agent: httpsAgent }) : undefined
+});
+// Cliente inseguro para retry puntual si se detecta SELF_SIGNED_CERT_IN_CHAIN
+const insecureClient = allowInsecureOpenAI ? client : new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  fetch: (url, init = {}) => fetch(url, { ...init, agent: httpsAgent })
+});
+
+// (httpsAgent ya fue definido antes)
+
+
+// Utilidad: espera asíncrona
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Helper robusto para llamadas a Chat con reintentos y fallback a cliente inseguro
+async function chatCompletionJSON(messages, { model = "gpt-4o-mini", maxRetries = 3 } = {}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const useInsecure = attempt > 1; // probar cliente inseguro desde el segundo intento
+    try {
+      const cli = useInsecure ? insecureClient : client;
+      const resp = await cli.chat.completions.create({ model, messages });
+      const content = resp?.choices?.[0]?.message?.content?.trim?.() || "";
+      if (typeof content === 'string' && content.length > 0) {
+        return content;
+      }
+      lastError = new Error('Respuesta vacía del modelo');
+    } catch (err) {
+      lastError = err;
+      const msg = String(err?.message || err || '');
+      const isConn = msg.includes('Connection error') || msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') || msg.includes('ENOTFOUND') || msg.includes('SELF_SIGNED_CERT_IN_CHAIN');
+      if (!isConn && attempt === maxRetries) break;
+    }
+    // backoff exponencial simple
+    await sleep(400 * attempt);
+  }
+  throw lastError || new Error('Fallo desconocido en chatCompletionJSON');
+}
 
 
 // Palabras clave para detectar Climatech - MEJORADAS y sincronizadas
@@ -144,6 +193,8 @@ function detectarPlataforma(urlString) {
 
 // Generar breve resumen de por qué el trend es relevante/famoso
 function generarResumenFamaTrend(contenido, sitio, autor, plataforma) {
+  console.log("Entré a la función: generarResumenFamaTrend" );
+
   const tokens = tokenize(contenido);
   const tf = buildTermFreq(tokens);
   const top = [...tf.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t])=>t).join(', ');
@@ -153,18 +204,6 @@ function generarResumenFamaTrend(contenido, sitio, autor, plataforma) {
   else if (sitio) partes.push(`Publicado en ${sitio}`);
   if (autor) partes.push(`Autor/Perfil: ${autor}`);
   return partes.length ? partes.join(' | ') : 'Trend relevante por su contenido y difusión.';
-}
-
-// Generar razonamiento de relación entre trend y newsletter
-function generarAnalisisRelacionTexto({ matchedTags = [], matchedTop = [], sitio = '', autor = '', plataforma = '', newsletterTitulo = '' }) {
-  const secciones = [];
-  if (newsletterTitulo) secciones.push(`Relación con "${newsletterTitulo}"`);
-  if (matchedTags.length) secciones.push(`Temas comunes: ${matchedTags.join(', ')}`);
-  if (matchedTop.length) secciones.push(`Palabras clave coincidentes: ${matchedTop.join(', ')}`);
-  if (plataforma) secciones.push(`Fuente: ${plataforma}`);
-  else if (sitio) secciones.push(`Fuente: ${sitio}`);
-  if (autor) secciones.push(`Publicado por: ${autor}`);
-  return secciones.join(' | ') || 'Relacionado por similitud temática y de palabras clave.';
 }
 
 // Mapa de temas y sinónimos para mejorar coincidencias semánticas
@@ -227,7 +266,7 @@ function hasAnyTerm(normText, termsSet) {
 // Función para extraer contenido de noticias desde URLs
 async function extraerContenidoNoticia(url) {
   try {
-   // console.log(`🔗 Extrayendo contenido de: ${url}`);
+   console.log(`Entre a: extraerContenidoNoticia`);
     
     const res = await fetch(url, { agent: httpsAgent });
     if (!res.ok) throw new Error(`Error HTTP: ${res.status} ${res.statusText}`);
@@ -258,7 +297,7 @@ async function extraerContenidoNoticia(url) {
 
     const contenido = parrafos.join('\n').slice(0, 3000);
     
-   // console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
+   console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
     
     return {
       titulo: titulo,
@@ -275,366 +314,263 @@ async function extraerContenidoNoticia(url) {
   }
 }
 
-// Función para generar resumen usando análisis de texto local
-function generarResumenLocal(contenido) {
+// Función para generar resumen usando Chat Completions de OpenAI
+async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
   try {
-    // Dividir en oraciones básicas
-    const oraciones = String(contenido || '')
-      .split(/[.!?]+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 10);
-
-    let resumenPartes = [];
-    let acumulado = 0;
-
-    for (const oracion of oraciones) {
-      const pieza = (oracion.endsWith('.') ? oracion : `${oracion}.`);
-      resumenPartes.push(pieza);
-      acumulado += pieza.length + 1;
-      if (acumulado >= 1500) break;
+    console.log("entre a generarResumenIA");
+    const resp = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Eres un asistente que resume noticias." },
+        { role: "user", content: `Resume esta noticia en 5 frases:\n\n${contenido}` }
+      ]
+    });
+    return resp?.choices?.[0]?.message?.content?.trim?.() || "";
+  } catch (err) {
+    if (err?.cause?.code === 'SELF_SIGNED_CERT_IN_CHAIN' || err?.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
+      try {
+        const resp2 = await insecureClient.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Eres un asistente que resume noticias." },
+            { role: "user", content: `Resume esta noticia en 5 frases:\n\n${contenido}` }
+          ]
+        });
+        return resp2?.choices?.[0]?.message?.content?.trim?.() || "";
+      } catch (err2) {
+        console.error("Error al generar resumen IA (retry inseguro):", err2);
+      }
     }
-
-    // Si las oraciones no alcanzan 500 chars, completar con un recorte del contenido
-    let resumen = resumenPartes.join(' ').trim();
-    if (resumen.length < 1500) {
-      const faltante = 1500 - resumen.length;
-      const extra = String(contenido || '')
-        .slice(0, Math.min(1200, faltante + 200))
-        .replace(/\s+/g, ' ')
-        .trim();
-      resumen = `${resumen} ${extra}`.trim();
-    }
-
-    // Cap razonable para no devolver textos excesivamente largos
-    if (resumen.length > 2500) {
-      resumen = resumen.slice(0, 1500).trim();
-      if (!/[.!?]$/.test(resumen)) resumen += '...';
-    }
-
-    // Asegurar punto final
-    if (!/[.!?]$/.test(resumen)) resumen += '.';
-
-    console.log(`📝 Resumen generado (${resumen.length} chars)`);
-    return resumen;
-  } catch (error) {
-    console.error(`❌ Error generando resumen: ${error.message}`);
-    return 'No se pudo generar el resumen.';
+    console.error("Error al generar resumen IA:", err);
+    return "⚠️ No se pudo generar resumen con IA.";
   }
 }
 
 // Función para determinar si es Climatech usando un modelo heurístico ponderado
-function determinarSiEsClimatechLocal(contenido, titulo = '') {
+async function esClimatechIA(contenido) {
   try {
-    console.log(`🔍 Evaluando si es Climatech (modelo heurístico)...`);
-
-    const texto = String(contenido || '');
-    const textoNorm = normalizeText(texto);
-    const tituloNorm = normalizeText(String(titulo || ''));
-
-    // 1) Palabras clave ponderadas (fuerte, media, débil)
-    const strongKeywords = ['climatech','cleantech','energias renovables','energía renovable','hidrógeno verde','captura de carbono','secuestro de carbono','movilidad sostenible','economia circular','economía circular'];
-    const mediumKeywords = ['solar','eolica','eólica','hidroelectrica','hidroeléctrica','geotermica','geotérmica','vehiculo electrico','coche electrico','paneles solares','turbinas eolicas','turbinas eólicas','emisiones','neutralidad de carbono'];
-    const weakKeywords = ['sostenible','sustentable','verde','ambiental','medio ambiente','transicion energetica','transición energética','esg'];
-
-    let kwScoreRaw = 0;
-    const foundKeywords = [];
-    for (const kw of strongKeywords) { if (textoNorm.includes(kw)) { kwScoreRaw += 3; foundKeywords.push(kw); } }
-    for (const kw of mediumKeywords) { if (textoNorm.includes(kw)) { kwScoreRaw += 2; foundKeywords.push(kw); } }
-    for (const kw of weakKeywords) { if (textoNorm.includes(kw)) { kwScoreRaw += 1; foundKeywords.push(kw); } }
-
-    // 2) Densidad de palabras climatech por cada 100 palabras
-    const totalWords = Math.max(1, texto.split(/\s+/).length);
-    const densityPer100 = (foundKeywords.length) / (totalWords / 100);
-
-    // 3) Tags temáticos (usando sinónimos definidos)
-    const tags = extractThematicTags(texto);
-    const tagCount = tags.size; // 0..N
-
-    // 4) Co-ocurrencias fuertes: IA + (agua o energía)
-    const hasAI = hasAnyTerm(textoNorm, AI_TERMS);
-    const hasWater = hasAnyTerm(textoNorm, WATER_TERMS);
-    const hasEnergy = hasAnyTerm(textoNorm, ENERGY_TERMS);
-    const cooccurBonus = (hasAI && (hasWater || hasEnergy)) ? 0.2 : 0;
-
-    // 5) Presencia en el título
-    let titleBonus = 0;
-    if (tituloNorm) {
-      if (strongKeywords.some(k => tituloNorm.includes(k))) titleBonus = 0.2;
-      else if (mediumKeywords.some(k => tituloNorm.includes(k))) titleBonus = 0.1;
-      else if (weakKeywords.some(k => tituloNorm.includes(k))) titleBonus = 0.05;
+    console.log("Entre a esClimatechIA");
+    const resp = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Eres un experto en sostenibilidad y tecnologías climáticas." },
+        { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH. 
+      CLIMATECH se define como cualquier conjunto de tecnologías e innovaciones que buscan combatir el cambio climático, reducir emisiones de gases de efecto invernadero, mitigar impactos ambientales o promover la adaptación a nuevas condiciones climáticas.
+      
+      ⚠️ Además, considera como CLIMATECH cualquier artículo que hable de la relación entre TECNOLOGÍA (de cualquier tipo, incluso digital, IA, telecomunicaciones, etc.) y el MEDIO AMBIENTE o el CAMBIO CLIMÁTICO. 
+      Ejemplo: una noticia sobre "La sed de ChatGPT: la IA consume una cantidad de agua alarmante" debe considerarse CLIMATECH porque conecta el impacto ambiental con una tecnología.
+      
+      Instrucciones:
+      1. Si la noticia cumple con esta definición, responde con "SI".
+      2. Si no cumple, responde con "NO".
+      3. Luego, independientemente de si tu respuesta es 'SI' o 'NO', da una breve explicación (1-3 frases) justificando tu decisión.
+      
+      Noticia a evaluar:
+      ${contenido}` }
+      ]
+    });
+    const salida = resp?.choices?.[0]?.message?.content?.trim?.() || "";
+    const esClimatech = salida.toLowerCase().startsWith("si");
+    return { esClimatech, razon: salida };
+  } catch (err) {
+    if (err?.cause?.code === 'SELF_SIGNED_CERT_IN_CHAIN' || err?.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
+      try {
+        const resp2 = await insecureClient.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Eres un experto en sostenibilidad y tecnologías climáticas." },
+            { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH. 
+      CLIMATECH se define como cualquier conjunto de tecnologías e innovaciones que buscan combatir el cambio climático, reducir emisiones de gases de efecto invernadero, mitigar impactos ambientales o promover la adaptación a nuevas condiciones climáticas.
+      
+      ⚠️ Además, considera como CLIMATECH cualquier artículo que hable de la relación entre TECNOLOGÍA (de cualquier tipo, incluso digital, IA, telecomunicaciones, etc.) y el MEDIO AMBIENTE o el CAMBIO CLIMÁTICO. 
+      Ejemplo: una noticia sobre "La sed de ChatGPT: la IA consume una cantidad de agua alarmante" debe considerarse CLIMATECH porque conecta el impacto ambiental con una tecnología.
+      
+      Instrucciones:
+      1. Si la noticia cumple con esta definición, responde con "SI".
+      2. Si no cumple, responde con "NO".
+      3. Luego, independientemente de si tu respuesta es 'SI' o 'NO', da una breve explicación (1-3 frases) justificando tu decisión.
+      
+      Noticia a evaluar:
+      ${contenido}` }
+          ]
+        });
+        const salida2 = resp2?.choices?.[0]?.message?.content?.trim?.() || "";
+        const esClimatech2 = salida2.toLowerCase().startsWith("si");
+        return { esClimatech: esClimatech2, razon: salida2 };
+      } catch (err2) {
+        console.error("Error en clasificación IA (retry inseguro):", err2);
+      }
     }
-
-    // 6) Normalizaciones de puntajes parciales
-    const kwScore = Math.min(1, kwScoreRaw / 10); // saturación a partir de ~10 puntos
-    const densityScore = Math.min(1, densityPer100 / 3); // 3 ocurrencias por 100 palabras ~ 1.0
-    const tagScore = Math.min(1, tagCount / 3); // 3+ tags temáticos ~ 1.0
-
-    // 7) Score final
-    let finalScore = 0.5 * kwScore + 0.25 * densityScore + 0.25 * tagScore + cooccurBonus + titleBonus;
-    finalScore = Math.min(finalScore, 1);
-
-    // 8) Reglas adicionales (evitar falsos positivos):
-    const passesRules = (
-      (tagCount >= 1 || (hasWater || hasEnergy)) && // Al menos un tag o pertenecer a agua/energía
-      (foundKeywords.length >= 2 || densityPer100 >= 1.0) // Mínimo 2 keywords o densidad razonable
-    );
-
-    const threshold = 0.45; // umbral base
-    const esClimatech = (finalScore >= threshold) && passesRules;
-
-    console.log(`📊 Score climatech: ${(finalScore * 100).toFixed(1)}% | tags=${tagCount} | kwFound=${foundKeywords.length} | dens=${densityPer100.toFixed(2)} /100`);
-    if (hasAI) console.log('🤖 Co-ocurrencia: IA detectada');
-    if (hasWater) console.log('💧 Co-ocurrencia: Agua detectada');
-    if (hasEnergy) console.log('⚡ Co-ocurrencia: Energía detectada');
-    if (titleBonus > 0) console.log(`📰 Bonus por título: +${(titleBonus*100).toFixed(0)} puntos`);
-    if (cooccurBonus > 0) console.log(`➕ Bonus por co-ocurrencia IA+agua/energía: +${(cooccurBonus*100).toFixed(0)} puntos`);
-    console.log(`🔍 Palabras detectadas: ${foundKeywords.join(', ')}`);
-    console.log(`🏷️ Tags: ${[...tags].join(', ')}`);
-    console.log(`✅ Evaluación final: ${esClimatech ? 'SÍ' : 'NO'}`);
-
-    return esClimatech;
-  } catch (error) {
-    console.error(`❌ Error evaluando Climatech: ${error.message}`);
-    return false;
+    console.error("Error al clasificar climatec hIA:", err);
+    return { esClimatech: false, razon: "⚠️ Error en clasificación IA" };
   }
 }
+
+
+async function explicarRelacionIA(noticia, newsletter) {
+  try {
+    console.log("Entre a: explicarRelacionIA");
+    const resp = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Eres un analista que encuentra similitudes." },
+        { role: "user", content: `Noticia:\n${noticia}\n\nNewsletter:\n${newsletter}\n\n
+           Explica en 3 frases por qué están relacionados.` }
+      ]
+    });
+    return { explicacion: resp?.choices?.[0]?.message?.content?.trim?.() || "" };
+  } catch (err) {
+    if (err?.cause?.code === 'SELF_SIGNED_CERT_IN_CHAIN' || err?.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
+      try {
+        const resp2 = await insecureClient.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Eres un analista que encuentra similitudes." },
+            { role: "user", content: `Noticia:\n${noticia}\n\nNewsletter:\n${newsletter}\n\n
+            Explica en 3 frases por qué están relacionados.` }
+          ]
+        });
+        return { explicacion: resp2?.choices?.[0]?.message?.content?.trim?.() || "" };
+      } catch (err2) {
+        console.error("Error en explicación IA (retry inseguro):", err2);
+      }
+    }
+    console.error("Error en explicación IA:", err);
+    return { explicacion: "⚠️ No se pudo generar explicación con IA." };
+  }
+}
+
 
 // Función para obtener newsletters de la base de datos
 export async function obtenerNewslettersBDD() {
   try {
-    console.log(`📥 Obteniendo newsletters de la base de datos...`);
+    console.log(`Entre a: obtenerNewslettersBDD de main2.js`);
     
-    // Solicitar todos los newsletters sin límite de paginación
-    const response = await fetch('http://localhost:3000/api/Newsletter?limit=10000&page=1');
-    if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+    // Verificar si el servidor está disponible
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+    
+    try {
+      // Solicitar todos los newsletters sin límite de paginación
+      const response = await fetch('http://localhost:3000/api/Newsletter?limit=10000&page=1', {
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+      }
+      
+      const newsletters = await response.json();
+      
+      // Verificar que newsletters sea un array
+      if (!Array.isArray(newsletters)) {
+        console.error(`❌ Error: La respuesta no es un array. Tipo recibido: ${typeof newsletters}`);
+        console.error(`❌ Contenido de la respuesta:`, newsletters);
+        return [];
+      }
+      
+      console.log(`✅ Se obtuvieron ${newsletters.length} newsletters de la BDD`);
+      
+      // Log adicional para confirmar que se obtuvieron todos
+      if (newsletters.length > 0) {
+        console.log(`📊 Primer newsletter: ${newsletters[0].titulo || 'Sin título'}`);
+        console.log(`📊 Último newsletter: ${newsletters[newsletters.length - 1].titulo || 'Sin título'}`);
+        
+      } else {
+        console.log(`⚠️ No se encontraron newsletters en la base de datos`);
+      }
+      
+      return newsletters;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      throw fetchError;
     }
-    
-    const newsletters = await response.json();
-    console.log(`✅ Se obtuvieron ${newsletters.length} newsletters de la BDD`);
-    
-    // Log adicional para confirmar que se obtuvieron todos
-    if (newsletters.length > 0) {
-      console.log(`📊 Primer newsletter: ${newsletters[0].titulo}`);
-      console.log(`📊 Último newsletter: ${newsletters[newsletters.length - 1].titulo}`);
-    }
-    
-    return newsletters;
   } catch (error) {
     console.error(`❌ Error obteniendo newsletters: ${error.message}`);
+    console.log(`💡 Asegúrate de que el servidor backend esté ejecutándose en http://localhost:3000`);
+    console.log(`💡 Verifica que la base de datos tenga newsletters registrados`);
     return [];
   }
 }
 
-// Función para comparar noticia con newsletters usando similitud de texto
-function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '') {
+// Función para comparar noticia con newsletters usando IA (Chat)
+async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '') {
   try {
-    console.log(`🔍 Comparando noticia con ${newsletters.length} newsletters (análisis local mejorado)...`);
-    console.log(`🔗 URL de la noticia: ${urlNoticia || 'No disponible'}`);
-    console.log(`📝 Resumen de la noticia: ${resumenNoticia.substring(0, 2000)}${resumenNoticia.length > 1500 ? '...' : ''}`);
-    
-    if (newsletters.length === 0) {
+    const resumen = typeof resumenNoticia === 'string' ? resumenNoticia : String(resumenNoticia || '');
+
+    if (!Array.isArray(newsletters) || newsletters.length === 0) {
       console.log(`⚠️ No hay newsletters en la base de datos para comparar`);
-      return [];
+      return { relacionados: [], motivoSinRelacion: 'No hay newsletters disponibles para comparar.' };
     }
 
-    // Log adicional para confirmar que se procesan todos los newsletters
-    console.log(`📊 Procesando todos los ${newsletters.length} newsletters para encontrar coincidencias...`);
+    console.log(`📊 Procesando todos los ${newsletters.length} newsletters para encontrar coincidencias... SE TIENE QUE HACER CON CHAT`);
 
-    const tokensResumen = tokenize(resumenNoticia);
-    const bigramResumen = bigrams(tokensResumen);
-    const trigramResumen = trigrams(tokensResumen);
-    const tfResumen = buildTermFreq(tokensResumen);
-    const tagsResumen = extractThematicTags(resumenNoticia);
-    const entitiesResumen = extractNamedEntities(resumenNoticia);
+    const relacionados = [];
+    const noRelacionRazones = [];
+    for (let i = 0; i < newsletters.length; i++) {
+      const nl = newsletters[i];
+      const textoDoc = `${nl.titulo || ''}\n\n${nl.Resumen || ''}`.trim();
+      const prompt = `Debes decidir si el resumen de una noticia está relacionado con el resumen de un newsletter. Responde SOLO con JSON válido con estas claves: relacionado (\"SI\" o \"NO\"), razon (máx 2 frases, breve), score (0-100, opcional).\n\nResumen de noticia:\n${resumen}\n\nNewsletter:\n${textoDoc}`;
 
-    const getHost = (u) => { try { return (new URL(u)).hostname.replace(/^www\./,'').toLowerCase(); } catch { return ''; } };
-    const hostNoticia = getHost(urlNoticia);
-
-    // Palabras clave del resumen (top 10 por frecuencia)
-    const topKeywords = [...tfResumen.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([term]) => term);
-    const topKeywordSet = new Set(topKeywords);
-    
-    console.log(`🔑 Palabras clave extraídas del resumen (top 10): ${topKeywords.join(', ')}`);
-    console.log(`🏷️ Tags temáticos detectados: ${[...tagsResumen].join(', ')}`);
-    console.log(`\n📊 Iniciando comparación detallada con cada newsletter...\n`);
-
-    const scoredAll = newsletters.map((newsletter, index) => {
-      const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
-      const linkDoc = newsletter.link || newsletter.url || '';
-      const isExactUrlMatch = linkDoc && urlNoticia && (linkDoc === urlNoticia);
-      const sameHost = hostNoticia && linkDoc && (getHost(linkDoc) === hostNoticia);
-      
-      // Log detallado para cada newsletter
-      console.log(`\n📧 Newsletter ${index + 1}/${newsletters.length}:`);
-      console.log(`   📰 Título: ${newsletter.titulo || 'Sin título'}`);
-      console.log(`   🔗 Link: ${linkDoc || 'No disponible'}`);
-      console.log(`   🆔 ID: ${newsletter.id}`);
-
-      if (isExactUrlMatch) {
-        console.log(`   ✅ COINCIDENCIA EXACTA DE URL - Score: 100%`);
-        return { ...newsletter, _score: 1, _matchesTop: 10, _tagOverlap: 1, _triJacc: 1, _bigJacc: 1, _cos: 1, _entityOverlapCount: 3, _forced: true };
+      try {
+        console.log(`\n🧪 Evaluando newsletter ${i + 1}/${newsletters.length}: ${nl.titulo || 'Sin título'}`);
+        const content = await chatCompletionJSON([
+          { role: "system", content: "Responde solo con JSON válido. Ejemplo: {\\\"relacionado\\\":\\\"SI\\\",\\\"razon\\\":\\\"Comparten tema de energía solar\\\",\\\"score\\\":82}" },
+          { role: "user", content: prompt }
+        ]);
+        console.log(`🔎 Respuesta RAW del modelo: ${content}`);
+        let parsed = null;
+        try { parsed = JSON.parse(content); } catch { parsed = null; }
+        console.log(`🧩 Parsed:`, parsed);
+        const score = Math.max(0, Math.min(100, Number(parsed?.score ?? 0)));
+        const razon = typeof parsed?.razon === 'string' ? parsed.razon : '';
+        const relacionado = String(parsed?.relacionado || '').toUpperCase() === 'SI';
+        if (relacionado) {
+          relacionados.push({ ...nl, puntuacion: isNaN(score) ? undefined : Math.round(score), analisisRelacion: razon, Relacionado: true });
+          console.log(`✅ Relacionado (score=${isNaN(score) ? 'N/D' : Math.round(score)}): ${razon}`);
+        } else {
+          noRelacionRazones.push(razon || 'No comparten tema/entidades clave.');
+          console.log(`❌ No relacionado: ${razon || 'Sin motivo'}`);
+        }
+      } catch (err) {
+        noRelacionRazones.push('No se pudo evaluar relación con IA.');
+        console.log(`⚠️ Error evaluando relación con IA: ${err?.message || err}`);
       }
-      const tokensDoc = tokenize(textoDoc);
-      const tfDoc = buildTermFreq(tokensDoc);
-      const cos = cosineSimilarity(tfResumen, tfDoc);
-      const bigramDoc = bigrams(tokensDoc);
-      const bigJacc = jaccard(new Set(bigramResumen), new Set(bigramDoc));
-      const trigramDoc = trigrams(tokensDoc);
-      const triJacc = jaccard(new Set(trigramResumen), new Set(trigramDoc));
-      const tagsDoc = extractThematicTags(textoDoc);
-      const tagOverlap = jaccard(tagsResumen, tagsDoc);
-      const entitiesDoc = extractNamedEntities(textoDoc);
-      const entityOverlapCount = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
+    }
 
-      // Coincidencias mínimas de palabras clave principales
-      let matchesTop = 0;
-      for (const t of tokensDoc) {
-        if (topKeywordSet.has(t)) matchesTop++;
-      }
+    const topRelacionados = relacionados
+      .sort((a, b) => (typeof b.puntuacion === 'number' ? b.puntuacion : -1) - (typeof a.puntuacion === 'number' ? a.puntuacion : -1))
+      .slice(0, 3);
 
-      // Score combinado más estricto: énfasis en n-gramas y similitud, boost si mismo dominio y co-ocurrencias IA+agua/energía
-      const normResumen = normalizeText(resumenNoticia);
-      const normDoc = normalizeText(textoDoc);
-      const resumenAI = hasAnyTerm(normResumen, AI_TERMS);
-      const docAI = hasAnyTerm(normDoc, AI_TERMS);
-      const resumenWater = hasAnyTerm(normResumen, WATER_TERMS);
-      const docWater = hasAnyTerm(normDoc, WATER_TERMS);
-      const resumenEnergy = hasAnyTerm(normResumen, ENERGY_TERMS);
-      const docEnergy = hasAnyTerm(normDoc, ENERGY_TERMS);
-      const coAIWater = (resumenAI && docAI && resumenWater && docWater) ? 0.08 : 0;
-      const coAIEnergy = (resumenAI && docAI && resumenEnergy && docEnergy) ? 0.06 : 0;
+    const motivoSinRelacion = topRelacionados.length === 0
+      ? (noRelacionRazones[0] || 'No hay coincidencias temáticas claras entre la noticia y los newsletters.')
+      : '';
 
-      const baseScore = 0.3 * cos + 0.1 * bigJacc + 0.6 * Math.min(tagOverlap, 1);
-      //const baseScore = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
-      const score = Math.min(baseScore + (sameHost ? 0.12 : 0) + coAIWater + coAIEnergy, 1);
-
-      // Guardar detalles de coincidencias
-      const matchedTopArr = topKeywords.filter(t => tokensDoc.includes(t));
-      const matchedTagsArr = [...tagsResumen].filter(t => extractThematicTags(textoDoc).has(t));
-
-      // Log detallado de métricas de similitud
-      console.log(`   📊 Métricas de similitud:`);
-      console.log(`      🏷️ Overlap de tags: ${(tagOverlap * 100).toFixed(1)}%`);
-      console.log(`      🔑 Palabras clave coincidentes: ${matchesTop}/${topKeywords.length}`);
-      
-      if (matchedTopArr.length > 0) {
-        console.log(`      🎯 Palabras clave coincidentes: ${matchedTopArr.join(', ')}`);
-      }
-      if (matchedTagsArr.length > 0) {
-        console.log(`      🏷️ Tags temáticos coincidentes: ${matchedTagsArr.join(', ')}`);
-      }
-
-      return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr, _sameHost: sameHost, _linkDoc: linkDoc };
+    console.log(`\n📊 Resultado final - relacionados: ${topRelacionados.length}`);
+    topRelacionados.forEach((nl, idx) => {
+      console.log(`   ${idx + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion ?? 'N/D'}) | Motivo: ${nl.analisisRelacion || ''}`);
     });
-
-    const passesGating = (nl) => (
-      nl._forced === true || (
-        nl._matchesTop >= 1 &&
-        (nl._bigJacc >= 0.01) &&
-        nl._tagOverlap >= 0.10
-      )
-    );
-
-    // Log de rechazados con motivo
-    const rejected = scoredAll.filter(nl => !passesGating(nl));
-    if (rejected.length > 0) {
-      console.log(`\n🚫 Newsletters rechazados por el gating: ${rejected.length}`);
-      rejected.slice(0, 10).forEach((nl, idx) => {
-        const reasons = [];
-        if (!(nl._sameHost ? nl._score >= 0.10 : nl._score >= 0.12)) reasons.push(`score=${(nl._score*100).toFixed(1)}%`);
-        if (!(nl._matchesTop >= 1)) reasons.push(`matchesTop=${nl._matchesTop}`);
-        if (!((nl._bigJacc >= 0.03) || (nl._triJacc >= 0.01))) reasons.push(`ngrams big=${(nl._bigJacc*100).toFixed(1)}% tri=${(nl._triJacc*100).toFixed(1)}%`);
-        if (!(nl._tagOverlap >= 0.10)) reasons.push(`tagOverlap=${(nl._tagOverlap*100).toFixed(1)}%`);
-        console.log(`   [${idx+1}] ${nl.titulo || 'Sin título'} | link=${nl._linkDoc || ''} | motivos: ${reasons.join(' | ')}`);
-      });
-      if (rejected.length > 10) console.log(`   ... y ${rejected.length - 10} más`);
+    if (topRelacionados.length === 0 && motivoSinRelacion) {
+      console.log(`ℹ️ Motivo sin relación: ${motivoSinRelacion}`);
     }
 
-    const newslettersScored = scoredAll
-      .filter(passesGating)
-      .sort((a, b) => b._score - a._score)
-      .slice(0, 3)
-      .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
-
-    console.log(`\n🎯 RESULTADOS DEL FILTRADO:`);
-    console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados de ${newsletters.length} evaluados)`);
-    
-    if (newslettersScored.length > 0) {
-      console.log(`\n🏆 TOP ${newslettersScored.length} NEWSLETTERS SELECCIONADOS:`);
-      newslettersScored.forEach((nl, index) => {
-        console.log(`   ${index + 1}. ${nl.titulo} (Score: ${nl.puntuacion}%) id=${nl.id ?? 'null'}`);
-        console.log(`      🔗 Link: ${nl.link || nl._linkDoc || 'No disponible'}`);
-      });
-    }
-    if (newslettersScored.length > 0) return newslettersScored;
-
-    // Fallback menos estricto para no perder candidatos
-    console.log(`\n🔄 EJECUTANDO FALLBACK (criterios menos estrictos)...`);
-    const fallback = newsletters.map((newsletter) => {
-      const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
-      const tokensDoc = tokenize(textoDoc);
-      const tri = jaccard(new Set(trigramResumen), new Set(trigrams(tokensDoc)));
-      const big = jaccard(new Set(bigramResumen), new Set(bigrams(tokensDoc)));
-      let kw = 0;
-      for (const kwd of topKeywords) { if (tokensDoc.includes(kwd)) kw++; }
-      const entitiesDoc = extractNamedEntities(textoDoc);
-      const entitiesOverlap = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
-      return { ...newsletter, _tri: tri, _big: big, _kw: kw, _ent: entitiesOverlap };
-    })
-    .filter(nl => (nl._tri >= 0.015 || nl._big >= 0.08) && nl._kw >= 2)
-    .sort((a, b) => (b._tri + b._big) - (a._tri + a._big))
-    .slice(0, 3)
-    .map(nl => ({ ...nl, puntuacion: Math.round((nl._tri + nl._big) * 100) }));
-
-    console.log(`ℹ️ Fallback estricto: ${fallback.length} newsletters (de ${newsletters.length} evaluados)`);
-    
-    if (fallback.length > 0) {
-      console.log(`\n🔄 NEWSLETTERS DEL FALLBACK:`);
-      fallback.forEach((nl, index) => {
-        console.log(`   ${index + 1}. ${nl.titulo} (Score: ${nl.puntuacion}%)`);
-        console.log(`      🔗 Link: ${nl.link || 'No disponible'}`);
-      });
-    }
-    
-    if (fallback.length > 0) return fallback;
-
-    // Soft-fallback: elegir el mejor candidato por tags/coseno si nada pasó
-    console.log(`\n🟡 SOFT-FALLBACK: seleccionando mejor candidato por tags/coseno...`);
-    const soft = scoredAll
-      .map(nl => ({ ...nl, _softScore: 0.7 * (nl._tagOverlap || 0) + 0.3 * (nl._cos || 0) }))
-      .filter(nl => (nl._matchesTop >= 1) || (nl._tagOverlap >= 0.03))
-      .sort((a,b) => b._softScore - a._softScore)
-      .slice(0, 1)
-      .map(nl => ({ ...nl, puntuacion: Math.round((nl._softScore) * 100), _forcedSoft: true }));
-
-    if (soft.length > 0) {
-      const s = soft[0];
-      console.log(`   ✅ Soft-related: ${s.titulo} | softScore=${(s._softScore*100).toFixed(1)}% | tagOverlap=${(s._tagOverlap*100).toFixed(1)}% | cos=${(s._cos*100).toFixed(1)}%`);
-      return soft;
-    }
-
-    console.log(`   ⚪ Ningún candidato razonable encontrado incluso con soft-fallback.`);
-    return [];
+    return { relacionados: topRelacionados, motivoSinRelacion };
   } catch (error) {
-    console.error(`❌ Error comparando newsletters: ${error.message}`);
-    return [];
+    console.error(`❌ Error comparando newsletters (chat): ${error.message}`);
+    return { relacionados: [], motivoSinRelacion: 'Error al comparar con IA.' };
   }
-  
-  // Log final del proceso
-  console.log(`\n🎉 PROCESO DE COMPARACIÓN COMPLETADO`);
-  console.log(`📊 Total de newsletters procesados: ${newsletters.length}`);
-  console.log(`🔍 URL analizada: ${urlNoticia || 'No disponible'}`);
-  console.log(`📝 Resumen analizado: ${resumenNoticia.substring(0, 100)}${resumenNoticia.length > 100 ? '...' : ''}`);
 }
 
 // Función para determinar tema principal usando análisis de texto
 function determinarTemaPrincipalLocal(contenido) {
   try {
-    console.log(`📋 Determinando tema principal (análisis local)...`);
+    console.log(`📋 Determinando tema principal (análisis local)... MODIFICAR: CREO QUE NO HACE FALTA LA FUNCION (determinarTemaPrincipalLocal)`);
     
     const contenidoLower = contenido.toLowerCase();
     const temas = {
@@ -674,7 +610,7 @@ function determinarTemaPrincipalLocal(contenido) {
 
 // Función principal para analizar noticias (devuelve mensaje para CLI)
 async function analizarNoticia(input) {
-  console.log(`🚀 Iniciando análisis completo de noticia (versión sin LLM)...`);
+  console.log(`🚀 Entre a : (analizarNoticia)`);
   
   try {
     let contenido, titulo;
@@ -682,6 +618,7 @@ async function analizarNoticia(input) {
     
     // PASO 1: Extraer contenido desde URL o usar texto directo
     if (typeof cleaned === 'string' && cleaned.startsWith('http')) {
+      console.log("PASO 1: Entrar a extraerContenidoNoticia")
       const resultadoExtraccion = await extraerContenidoNoticia(cleaned);
         contenido = resultadoExtraccion.contenido;
         titulo = resultadoExtraccion.titulo;
@@ -691,38 +628,45 @@ async function analizarNoticia(input) {
       }
 
       // PASO 2: Generar resumen
-    const resumen = generarResumenLocal(contenido);
+      console.log("PASO 2: Entrar a generarResumenIA")
+    const resumen = await generarResumenIA(contenido);
 
       // PASO 3: Determinar si es Climatech
-    const esClimatech = determinarSiEsClimatechLocal(contenido);
+      console.log("PASO 3: Entrar a esClimatechIA")
+    const esClimatech = await esClimatechIA(contenido);
 
-      if (!esClimatech) {
+      if (!esClimatech.esClimatech) {
         // PASO 3.1: Si no es Climatech, informar tema principal
+        console.log("PASO 3.1: Entrar a determinarTemaPrincipalLocal por si no es climatech")
       const temaPrincipal = determinarTemaPrincipalLocal(contenido);
 
       return `❌ Esta noticia NO está relacionada con Climatech.
 
 📰 Título: ${titulo}
 📋 Tema principal: ${temaPrincipal}
+📝 Razón: ${esClimatech.razon}
 
 💡 Tip: Las noticias sobre Climatech incluyen energías renovables, eficiencia energética, captura de carbono, movilidad sostenible, agricultura sostenible, tecnologías ambientales, políticas climáticas, etc.`;
       }
 
       // PASO 4: Obtener newsletters de la BDD
-      console.log(`\n📥 PASO 4: Obteniendo newsletters de la base de datos...`);
+      console.log(`\n PASO 4: entrar a obtenerNewslettersBDD`);
       const newsletters = await obtenerNewslettersBDD();
 
       // PASO 5: Comparar noticia con newsletters
-      console.log(`\n🔍 PASO 5: Comparando noticia con newsletters...`);
+      console.log(`\n🔍 PASO 5: Entrar a: compararConNewslettersLocal (el resumen  se esta mandando de una linea de abajo pero no de la funcion que genera el resumen)`);
       console.log(`📊 Total de newsletters obtenidos: ${newsletters.length}`);
       console.log(`🔗 URL a comparar: ${input}`);
-      console.log(`📝 Resumen a comparar: ${resumen.substring(0, 150)}${resumen.length > 150 ? '...' : ''}`);
+      console.log(`📝 Resumen a comparar: ${typeof resumen === 'string' ? resumen.substring(0, 150) + (resumen.length > 150 ? '...' : '') : 'Resumen no disponible'}`);
       
-      const newslettersRelacionados = compararConNewslettersLocal(resumen, newsletters, input);
+      const { relacionados: newslettersRelacionados, motivoSinRelacion } = await compararConNewslettersLocal(typeof resumen === 'string' ? resumen : 'Resumen no disponible', newsletters, input);
 
       // PASO 6: Preparar respuesta final
       console.log(`\n📋 PASO 6: Preparando respuesta final...`);
       console.log(`🎯 Newsletters relacionados encontrados: ${newslettersRelacionados.length}`);
+      if (newslettersRelacionados.length === 0 && motivoSinRelacion) {
+        console.log(`ℹ️ Motivo: ${motivoSinRelacion}`);
+      }
       
       let mensaje = `✅ Esta noticia SÍ está relacionada con Climatech.
 
@@ -735,11 +679,11 @@ async function analizarNoticia(input) {
       mensaje += `📧 Newsletters relacionados encontrados:
 `;
         newslettersRelacionados.forEach((nl, index) => {
-        mensaje += `${index + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion})
+        mensaje += `${index + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion ?? 'N/D'})\n   📌 Motivo: ${nl.analisisRelacion || ''}
 `;
         });
       } else {
-        mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.`;
+        mensaje += `⚠️ No se encontraron newsletters con temática similar en la base de datos.\n   📌 Motivo: ${motivoSinRelacion || 'No hay coincidencias temáticas claras.'}`;
       }
 
     return mensaje;
@@ -751,90 +695,42 @@ async function analizarNoticia(input) {
 }
 
 // Función para analizar noticia y devolver estructura para API
-export async function analizarNoticiaEstructurada(input) {
-  try {
-    let contenido, titulo, url = '';
-    let sitio = '';
-    let autor = '';
-    let fechaPublicacion = '';
-    const cleaned = (typeof input === 'string') ? input.trim().replace(/^[@\s]+/, '') : input;
-    if (typeof cleaned === 'string' && cleaned.startsWith('http')) {
-      const resultadoExtraccion = await extraerContenidoNoticia(cleaned);
-      contenido = resultadoExtraccion.contenido;
-      titulo = resultadoExtraccion.titulo;
-      url = cleaned;
-      sitio = resultadoExtraccion.sitio || '';
-      autor = resultadoExtraccion.autor || '';
-      fechaPublicacion = resultadoExtraccion.fechaPublicacion || '';
-    } else {
-      contenido = cleaned;
-      titulo = 'Texto proporcionado';
-    }
+export async function analizarNoticiaEstructurada(url) {
+  console.log ("entre a:  analizarNoticiaEstructurada (verificar que es)")
+  const extraido = await extraerContenidoNoticia(url);
+  if (!extraido) return null;
 
-    const resumen = generarResumenLocal(contenido);
-    const esClimatech = determinarSiEsClimatechLocal(contenido, titulo);
-    let newsletters = [];
-    let relacionados = [];
-    if (esClimatech) {
-      console.log(`\n📥 Obteniendo newsletters para comparación...`);
-      newsletters = await obtenerNewslettersBDD();
-      console.log(`🔍 Comparando con ${newsletters.length} newsletters...`);
-      relacionados = compararConNewslettersLocal(resumen, newsletters, url);
-    }
+  const textoNoticia = extraido.contenido || '';
 
-    const fechaRelacion = new Date().toISOString();
-    const plataforma = url ? detectarPlataforma(url) : '';
-    const resumenFama = generarResumenFamaTrend(contenido, sitio, autor, plataforma);
+  // IA
+  const resumen = await generarResumenIA(textoNoticia);
+  const clasificacion = await esClimatechIA(textoNoticia);
 
-    return {
-      esClimatech,
-      titulo,
-      resumen: esClimatech ? resumen : null,
-      url,
-      sitio,
-      autor,
-      fechaPublicacion,
-      resumenFama,
-      newslettersRelacionados: relacionados.map(nl => ({
-        id: nl.id ?? (() => {
-          try {
-            const list = Array.isArray(newsletters) ? newsletters : [];
-            const byLink = list.find(x => (String(x.link || x.url || '').trim()) === (String(nl.link || '').trim()));
-            if (byLink && byLink.id) return byLink.id;
-            const byTitle = list.find(x => (String(x.titulo || '').trim()) === (String(nl.titulo || '').trim()));
-            return byTitle?.id ?? null;
-          } catch { return null; }
-        })(),
-        titulo: nl.titulo,
-        Resumen: nl.Resumen || '',
-        link: nl.link || '',
-        puntuacion: nl.puntuacion || 0,
-        fechaRelacion,
-        analisisRelacion: (() => {
-          const tags = (nl._matchedTagsArr || []).join(', ');
-          const tops = (nl._matchedTopArr || []).join(', ');
-          const partes = [];
-          if (tags) partes.push(`Coincidencia temática: ${tags}`);
-          if (tops) partes.push(`Palabras clave comunes: ${tops}`);
-          if (plataforma) partes.push(`Fuente: ${plataforma}`);
-          else if (sitio) partes.push(`Fuente: ${sitio}`);
-          if (autor) partes.push(`Autor/Perfil: ${autor}`);
-          return partes.length ? partes.join(' | ') : 'Relacionados por similitud de contenido.';
-        })()
-      })),
-      sinRelacion: esClimatech && relacionados.length === 0
-    };
-  } catch (error) {
-    // Si la extracción falla, no forzar inserciones ni marcados falsos
-    return {
-      esClimatech: false,
-      titulo: '',
-      resumen: null,
-      url: '',
-      newslettersRelacionados: [],
-      error: error.message || String(error),
-    };
-  }
+  // BD
+  const newsletters = await obtenerNewslettersBDD();
+
+  // Comparación local: obtener top relacionados desde el comparador
+  const { relacionados, motivoSinRelacion } = Array.isArray(newsletters)
+    ? await compararConNewslettersLocal(typeof resumen === 'string' ? resumen : textoNoticia, newsletters, url)
+    : { relacionados: [], motivoSinRelacion: 'No hay newsletters para comparar.' };
+
+  // Adaptar salida a lo que esperan los consumidores aguas abajo
+  return {
+    url,
+    titulo: extraido.titulo || '',
+    autor: extraido.autor || '',
+    resumen,
+    esClimatech: !!clasificacion?.esClimatech,
+    razonClimatech: clasificacion?.razon || '',
+    newslettersRelacionados: Array.isArray(relacionados) ? relacionados.map(nl => ({
+      id: nl.id ?? null,
+      titulo: nl.titulo || '',
+      link: nl.link || nl._linkDoc || '',
+      puntuacion: nl.puntuacion ?? null,
+      analisisRelacion: nl.analisisRelacion || '',
+    })) : [],
+    motivoSinRelacion
+  };
 }
 
 // Procesar un conjunto de URLs: analizar y persistir en Trends si corresponde

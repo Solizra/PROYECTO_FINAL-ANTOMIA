@@ -224,7 +224,6 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
       .toISOString()
       .split('T')[0]; // usar solo la fecha para mayor compatibilidad
 
-    console.log(`🕐 [${new Date().toLocaleString()}] Iniciando búsqueda de noticias... (máx: ${pageSize})`);
     
     const url = `https://newsapi.org/v2/everything?` +
       `q=${encodeURIComponent(query.replace(/\s+/g, ' '))}` +
@@ -288,12 +287,6 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
     const chosen = topical.length > 0 ? topical : scoredArticles.filter(a => a.score >= 8); // Bajado de 10 a 8
     const articles = chosen.slice(0, pageSize);
     
-    // Log de los mejores resultados con sus scores
-    console.log('🏆 Top 5 noticias por relevancia:');
-    articles.slice(0, 5).forEach((article, index) => {
-      console.log(`${index + 1}. Score: ${article.score} | ${article.title} | ${article.source?.name || 'Unknown'}`);
-    });
-    
     // Estadísticas de calidad
     const avgScore = articles.reduce((sum, a) => sum + a.score, 0) / articles.length;
     const highQualityCount = articles.filter(a => a.score >= 20).length;
@@ -301,12 +294,6 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
       const hostname = new URL(a.url).hostname.toLowerCase();
       return ['techcrunch.com', 'wired.com', 'theverge.com', 'mit.edu', 'nature.com', 'science.org'].includes(hostname);
     }).length;
-    
-    console.log(`📊 Estadísticas de calidad:`);
-    console.log(`   - Score promedio: ${avgScore.toFixed(1)}`);
-    console.log(`   - Noticias de alta calidad (score ≥20): ${highQualityCount}/${articles.length}`);
-    console.log(`   - Fuentes premium: ${premiumSourceCount}/${articles.length}`);
-
       
 
     // Normalizar a un formato mínimo solo con datos necesarios para el agente/front
@@ -319,14 +306,12 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
 
     // Guardar en archivo JSON dentro de esta carpeta
     fs.writeFileSync(noticiasFilePath, JSON.stringify(minimal, null, 2));
-    console.log(`✅ URLs guardadas en "${noticiasFilePath}" (${minimal.length} items)`);
+
 
     // Enviar URLs al agente para analizar y (si corresponde) persistir en Trends.
     // Si hubo errores de extracción, el agente responderá con esClimatech=false y no se insertará.
     try {
-      console.log(`🤖 Enviando ${minimal.length} URLs al agente para análisis...`);
       const resultados = await procesarUrlsYPersistir(minimal);
-      console.log('✅ Agente terminó el procesamiento de URLs');
       
       // Verificar cuántos trends se crearon realmente
       let trendsCreados = 0;
@@ -349,7 +334,6 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
             tipo: 'trendsCreados',
             resultados: resultados
           });
-          console.log(`📡 Notificación de trends creados enviada al EventBus: ${trendsCreados} trends`);
         } else {
           // Si no se crearon trends, notificar como "noticias procesadas"
           eventBus.default.notifyNewsUpdate({
@@ -359,7 +343,6 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
             tipo: 'noticiasProcesadas',
             resultados: resultados
           });
-          console.log('📡 Notificación de noticias procesadas enviada al EventBus');
         }
       } catch (eventError) {
         console.error('❌ Error notificando al EventBus:', eventError);
@@ -379,12 +362,11 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
 
 // Función para iniciar la programación automática
 function iniciarProgramacionAutomatica() {
-  console.log('🚀 Iniciando programación automática de búsqueda de noticias...');
+  
   
   // Esperar 30 segundos para que el frontend se conecte al SSE
   console.log('⏳ Esperando 30 segundos para que el frontend se conecte...');
   setTimeout(() => {
-    console.log('✅ Iniciando primera búsqueda de noticias...');
     buscarNoticias();
   }, 30000);
   
@@ -394,14 +376,12 @@ function iniciarProgramacionAutomatica() {
   // Nota: evitamos especificar timezone para mayor compatibilidad en Windows
   // y entornos sin ICU completo. Para expresiones por minuto no es necesario.
   cron.schedule(cronExpression, () => {
-    console.log(`⏱️ Disparador cron: ${new Date().toLocaleString()}`);
     buscarNoticias(); // refresca solo las URLs para el agente/front
   }, {
     scheduled: true
   });
   
   console.log(`⏰ Programación configurada: ejecutando cada 30 minutos`);
-  console.log(`📅 Próxima ejecución programada según cron: ${cronExpression}`);
 }
 
 // Función para ejecutar una sola vez (comportamiento original)
