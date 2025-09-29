@@ -59,7 +59,7 @@ router.post('/analizar', async (req, res) => {
         Nombre_Newsletter_Relacionado: '',
         Fecha_Relación: new Date().toISOString(),
         Relacionado: false,
-        Analisis_relacion: 'Sin newsletter relacionado, pero clasificado como Climatech',
+        Analisis_relacion: resultado.analisisSinRelacion || 'Sin newsletter relacionado, pero clasificado como Climatech',
       };
       console.log('📝 Insert payload (relacionado=false):', payload);
       const created = await trendsSvc.createAsync(payload);

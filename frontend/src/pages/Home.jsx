@@ -116,7 +116,7 @@ function Home() {
                     relacionado: !!ins.Relacionado,
                     newsletterLink: ins.newsletterLink || '',
                     analisisRelacion: ins.Analisis_relacion || 'Sin análisis disponible',
-                    resumenFama: data.resumenFama || '',
+                    resumenFama: data.resumenBreve || data.resumenFama || '',
                     autor: data.autor || '',
                   }))
                 : (baseFilas.length > 0 ? baseFilas : []);
@@ -132,7 +132,16 @@ function Home() {
           .filter(Boolean)
           .flat();
         if (compactas.length) {
-          setTrends((prev) => sortByDateDesc([...prev, ...compactas]));
+          setTrends((prev) => {
+            const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+            const nuevosUnicos = compactas.filter(f => {
+              const key = `${f.trendLink}|${f.newsletterId ?? 'null'}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            return sortByDateDesc([...prev, ...nuevosUnicos]);
+          });
         }
               } catch (e) {
           // Manejar errores de conexión silenciosamente

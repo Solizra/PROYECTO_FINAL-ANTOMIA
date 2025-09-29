@@ -7,6 +7,33 @@ export default class TrendsRepository {
     const client = new Client(DBConfig);
     try {
       await client.connect();
+      // Chequeo de duplicados: misma noticia (Link_del_Trend) y mismo newsletter (id_newsletter) y mismo flag Relacionado
+      try {
+        const checkSql = `
+          SELECT "id"
+          FROM "Trends"
+          WHERE "Link_del_Trend" = $1
+            AND (
+              ($2 IS NULL AND "id_newsletter" IS NULL)
+              OR ("id_newsletter" = $2)
+            )
+            AND ("Relacionado" = $3)
+            AND COALESCE("Nombre_Newsletter_Relacionado", '') = COALESCE($4, '')
+          LIMIT 1;
+        `;
+        const checkParams = [
+          record.Link_del_Trend ?? '',
+          record.id_newsletter ?? null,
+          record.Relacionado === true,
+          record.Nombre_Newsletter_Relacionado ?? ''
+        ];
+        const existing = await client.query(checkSql, checkParams);
+        if (existing.rows.length > 0) {
+          return { id: existing.rows[0].id, duplicated: true };
+        }
+      } catch (dupErr) {
+        console.error('Error comprobando duplicados en Trends:', dupErr);
+      }
       const sql = `
         INSERT INTO "Trends" (
           "id_newsletter",
@@ -63,11 +90,13 @@ export default class TrendsRepository {
     const offset = (page - 1) * limit;
     try {
       await client.connect();
+      // Devolver solo una fila por par (Link_del_Trend, id_newsletter), priorizando la más reciente
       const sql = `
-        SELECT "id", "id_newsletter", "Título_del_Trend", "Link_del_Trend",
+        SELECT DISTINCT ON ("Link_del_Trend", COALESCE("id_newsletter", -1))
+               "id", "id_newsletter", "Título_del_Trend", "Link_del_Trend",
                "Nombre_Newsletter_Relacionado", "Fecha_Relación", "Relacionado", "Analisis_relacion"
         FROM "Trends"
-        ORDER BY "id" DESC
+        ORDER BY "Link_del_Trend", COALESCE("id_newsletter", -1), "id" DESC
         LIMIT $1 OFFSET $2
       `;
       const result = await client.query(sql, [limit, offset]);
