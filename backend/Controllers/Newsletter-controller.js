@@ -49,7 +49,11 @@ router.post('/analizar', async (req, res) => {
         };
         console.log('📝 Insert payload (relacionado=true):', payload);
         const created = await trendsSvc.createAsync(payload);
-        inserts.push({ ...payload, id: created?.id, newsletterLink: nl.link || '' });
+        if (!created?.duplicated) {
+          inserts.push({ ...payload, id: created?.id, newsletterLink: nl.link || '' });
+        } else {
+          console.log('⛔ Relación duplicada evitada (controller):', payload.Link_del_Trend, payload.id_newsletter, payload.Nombre_Newsletter_Relacionado);
+        }
       }
     } else if (resultado.esClimatech && tieneLinkValido) {
       const payload = {
@@ -59,7 +63,7 @@ router.post('/analizar', async (req, res) => {
         Nombre_Newsletter_Relacionado: '',
         Fecha_Relación: new Date().toISOString(),
         Relacionado: false,
-        Analisis_relacion: 'Sin newsletter relacionado, pero clasificado como Climatech',
+        Analisis_relacion: resultado.analisisSinRelacion || 'Sin newsletter relacionado, pero clasificado como Climatech',
       };
       console.log('📝 Insert payload (relacionado=false):', payload);
       const created = await trendsSvc.createAsync(payload);

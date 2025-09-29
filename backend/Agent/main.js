@@ -206,6 +206,70 @@ function generarResumenFamaTrend(contenido, sitio, autor, plataforma) {
   return partes.length ? partes.join(' | ') : 'Trend relevante por su contenido y difusión.';
 }
 
+<<<<<<< HEAD
+=======
+// Generar un resumen breve (2-3 frases, <= 300 caracteres)
+function generarResumenBreve(contenido, titulo = '') {
+  try {
+    const texto = String(contenido || '').replace(/\s+/g, ' ').trim();
+    if (!texto) return titulo || 'Resumen no disponible.';
+
+    const oraciones = texto
+      .split(/[.!?]+\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const candidatas = [];
+    for (const s of oraciones) {
+      if (/\b(sostenibil|clima|energ|carbon|agua|ambien|emision|renov|IA|inteligencia|tecnolog)/i.test(s)) {
+        candidatas.push(s);
+      }
+      if (candidatas.length >= 3) break;
+    }
+    if (candidatas.length === 0) {
+      candidatas.push(oraciones[0] || texto.slice(0, 200));
+    }
+    const combinado = candidatas.slice(0, 3).join('. ') + '.';
+    let breve = combinado.slice(0, 300);
+    if (combinado.length > 300) breve = breve.replace(/[,;:]?\s*\w*?$/, '...');
+    return breve;
+  } catch {
+    return titulo || 'Resumen no disponible.';
+  }
+}
+
+// Generar razonamiento de relación entre trend y newsletter
+function generarAnalisisRelacionTexto({ matchedTags = [], matchedTop = [], sitio = '', autor = '', plataforma = '', newsletterTitulo = '' }) {
+  const secciones = [];
+  if (newsletterTitulo) secciones.push(`Relación con "${newsletterTitulo}"`);
+  if (matchedTags.length) secciones.push(`Temas comunes: ${matchedTags.join(', ')}`);
+  if (matchedTop.length) secciones.push(`Palabras clave coincidentes: ${matchedTop.join(', ')}`);
+  if (plataforma) secciones.push(`Fuente: ${plataforma}`);
+  else if (sitio) secciones.push(`Fuente: ${sitio}`);
+  if (autor) secciones.push(`Publicado por: ${autor}`);
+  return secciones.join(' | ') || 'Relacionado por similitud temática y de palabras clave.';
+}
+
+// Justificar por qué no hubo relación con newsletters
+function generarJustificacionSinRelacion({ resumenTexto = '', totalNewsletters = 0 }) {
+  try {
+    const tokens = tokenize(resumenTexto);
+    const tf = buildTermFreq(tokens);
+    const top = [...tf.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([t])=>t);
+    const tags = [...extractThematicTags(resumenTexto)];
+    const partes = [];
+    partes.push('No se alcanzaron los umbrales mínimos de similitud con ningún newsletter.');
+    if (tags.length) partes.push(`Temática detectada: ${tags.join(', ')}`);
+    if (top.length) partes.push(`Tópicos principales del artículo: ${top.join(', ')}`);
+    if (totalNewsletters) partes.push(`Se evaluaron ${totalNewsletters} newsletters.`);
+    partes.push('Criterios aplicados: ≥1 palabra clave compartida, ≥10% de superposición de tags, y n-gramas coherentes. Ningún documento superó simultáneamente estos filtros.');
+    return partes.join(' ');
+  } catch {
+    return 'No se encontraron coincidencias suficientes con los newsletters disponibles.';
+  }
+}
+
+>>>>>>> 4a8a0a29a4e26ff3091c5e8fa71320702ddca5fc
 // Mapa de temas y sinónimos para mejorar coincidencias semánticas
 const THEMATIC_SYNONYMS = {
   ia: ['ia', 'inteligencia artificial', 'ai', 'machine learning', 'aprendizaje automático'],
@@ -317,6 +381,7 @@ async function extraerContenidoNoticia(url) {
 // Función para generar resumen usando Chat Completions de OpenAI
 async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
   try {
+<<<<<<< HEAD
     console.log("entre a generarResumenIA");
     const resp = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -343,6 +408,49 @@ async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
     }
     console.error("Error al generar resumen IA:", err);
     return "⚠️ No se pudo generar resumen con IA.";
+=======
+    // Dividir en oraciones básicas
+    const oraciones = String(contenido || '')
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 10);
+
+    let resumenPartes = [];
+    let acumulado = 0;
+
+    for (const oracion of oraciones) {
+      const pieza = (oracion.endsWith('.') ? oracion : `${oracion}.`);
+      resumenPartes.push(pieza);
+      acumulado += pieza.length + 1;
+      if (acumulado >= 600) break; // recortar tamaño del resumen extenso
+    }
+
+    // Si las oraciones no alcanzan 500 chars, completar con un recorte del contenido
+    let resumen = resumenPartes.join(' ').trim();
+    if (resumen.length < 500) { // objetivo: 3–5 frases ~500 chars
+      const faltante = 500 - resumen.length;
+      const extra = String(contenido || '')
+        .slice(0, Math.min(600, faltante + 200))
+        .replace(/\s+/g, ' ')
+        .trim();
+      resumen = `${resumen} ${extra}`.trim();
+    }
+
+    // Cap razonable para no devolver textos excesivamente largos
+    if (resumen.length > 900) {
+      resumen = resumen.slice(0, 700).trim();
+      if (!/[.!?]$/.test(resumen)) resumen += '...';
+    }
+
+    // Asegurar punto final
+    if (!/[.!?]$/.test(resumen)) resumen += '.';
+
+    console.log(`📝 Resumen generado (${resumen.length} chars)`);
+    return resumen;
+  } catch (error) {
+    console.error(`❌ Error generando resumen: ${error.message}`);
+    return 'No se pudo generar el resumen.';
+>>>>>>> 4a8a0a29a4e26ff3091c5e8fa71320702ddca5fc
   }
 }
 
@@ -700,12 +808,31 @@ export async function analizarNoticiaEstructurada(url) {
   const extraido = await extraerContenidoNoticia(url);
   if (!extraido) return null;
 
+<<<<<<< HEAD
   const textoNoticia = extraido.contenido || '';
+=======
+    const resumen = generarResumenLocal(contenido);
+    const resumenBreve = generarResumenBreve(contenido, titulo);
+    const esClimatech = determinarSiEsClimatechLocal(contenido, titulo);
+    let newsletters = [];
+    let relacionados = [];
+    let analisisSinRelacion = '';
+    if (esClimatech) {
+      console.log(`\n📥 Obteniendo newsletters para comparación...`);
+      newsletters = await obtenerNewslettersBDD();
+      console.log(`🔍 Comparando con ${newsletters.length} newsletters...`);
+      relacionados = compararConNewslettersLocal(resumen, newsletters, url);
+      if (!Array.isArray(relacionados) || relacionados.length === 0) {
+        analisisSinRelacion = generarJustificacionSinRelacion({ resumenTexto: resumen, totalNewsletters: Array.isArray(newsletters) ? newsletters.length : 0 });
+      }
+    }
+>>>>>>> 4a8a0a29a4e26ff3091c5e8fa71320702ddca5fc
 
   // IA
   const resumen = await generarResumenIA(textoNoticia);
   const clasificacion = await esClimatechIA(textoNoticia);
 
+<<<<<<< HEAD
   // BD
   const newsletters = await obtenerNewslettersBDD();
 
@@ -731,6 +858,58 @@ export async function analizarNoticiaEstructurada(url) {
     })) : [],
     motivoSinRelacion
   };
+=======
+    return {
+      esClimatech,
+      titulo,
+      resumen: esClimatech ? resumen : null,
+      resumenBreve: esClimatech ? resumenBreve : null,
+      url,
+      sitio,
+      autor,
+      fechaPublicacion,
+      resumenFama,
+      analisisSinRelacion,
+      newslettersRelacionados: relacionados.map(nl => ({
+        id: nl.id ?? (() => {
+          try {
+            const list = Array.isArray(newsletters) ? newsletters : [];
+            const byLink = list.find(x => (String(x.link || x.url || '').trim()) === (String(nl.link || '').trim()));
+            if (byLink && byLink.id) return byLink.id;
+            const byTitle = list.find(x => (String(x.titulo || '').trim()) === (String(nl.titulo || '').trim()));
+            return byTitle?.id ?? null;
+          } catch { return null; }
+        })(),
+        titulo: nl.titulo,
+        Resumen: nl.Resumen || '',
+        link: nl.link || '',
+        puntuacion: nl.puntuacion || 0,
+        fechaRelacion,
+        analisisRelacion: (() => {
+          return generarAnalisisRelacionTexto({
+            matchedTags: nl._matchedTagsArr || [],
+            matchedTop: nl._matchedTopArr || [],
+            sitio,
+            autor,
+            plataforma,
+            newsletterTitulo: nl.titulo || ''
+          });
+        })()
+      })),
+      sinRelacion: esClimatech && relacionados.length === 0
+    };
+  } catch (error) {
+    // Si la extracción falla, no forzar inserciones ni marcados falsos
+    return {
+      esClimatech: false,
+      titulo: '',
+      resumen: null,
+      url: '',
+      newslettersRelacionados: [],
+      error: error.message || String(error),
+    };
+  }
+>>>>>>> 4a8a0a29a4e26ff3091c5e8fa71320702ddca5fc
 }
 
 // Procesar un conjunto de URLs: analizar y persistir en Trends si corresponde
@@ -783,7 +962,7 @@ export async function procesarUrlsYPersistir(items = []) {
             };
             const createdTrend = await trendsSvc.createAsync(payload);
             
-            if (createdTrend && createdTrend.id) {
+            if (createdTrend && createdTrend.id && !createdTrend.duplicated) {
               trendsInsertados++;
               
               // Notificar nuevo trend agregado a través del EventBus
@@ -797,7 +976,7 @@ export async function procesarUrlsYPersistir(items = []) {
                 relacionado: true,
                 newsletterLink: nl.link || '',
                 analisisRelacion: nl.analisisRelacion || '',
-                resumenFama: resultado.resumenFama || '',
+                resumenFama: resultado.resumenBreve || resultado.resumenFama || '',
                 autor: resultado.autor || '',
               };
               
@@ -807,6 +986,8 @@ export async function procesarUrlsYPersistir(items = []) {
               } catch (eventError) {
                 console.error('Error notificando nuevo trend:', eventError);
               }
+            } else if (createdTrend?.duplicated) {
+              console.log('⛔ Relación duplicada evitada (auto):', url, payload.id_newsletter, payload.Nombre_Newsletter_Relacionado);
             }
           } catch (e) {
             console.error(`Error creando trend para ${url}:`, e?.message || e);
@@ -823,11 +1004,11 @@ export async function procesarUrlsYPersistir(items = []) {
             Nombre_Newsletter_Relacionado: '', // Vacío
             Fecha_Relación: new Date().toISOString(),
             Relacionado: false, // No relacionado
-            Analisis_relacion: 'Noticia climatech sin newsletters relacionados'
+            Analisis_relacion: resultado.analisisSinRelacion || 'Noticia climatech sin newsletters relacionados'
           };
           const createdTrend = await trendsSvc.createAsync(payload);
           
-          if (createdTrend && createdTrend.id) {
+          if (createdTrend && createdTrend.id && !createdTrend.duplicated) {
             trendsInsertados++;
             
             // Notificar nuevo trend agregado a través del EventBus
@@ -841,7 +1022,7 @@ export async function procesarUrlsYPersistir(items = []) {
               relacionado: false, // No relacionado
               newsletterLink: '',
               analisisRelacion: 'Noticia climatech sin newsletters relacionados',
-              resumenFama: resultado.resumenFama || '',
+              resumenFama: resultado.resumenBreve || resultado.resumenFama || '',
               autor: resultado.autor || '',
             };
             
@@ -851,6 +1032,8 @@ export async function procesarUrlsYPersistir(items = []) {
             } catch (eventError) {
               console.error('Error notificando nuevo trend:', eventError);
             }
+          } else if (createdTrend?.duplicated) {
+            console.log('⛔ Relación duplicada evitada (auto, sin newsletter):', url);
           }
         } catch (e) {
           console.error(`Error creando trend sin newsletter para ${url}:`, e?.message || e);

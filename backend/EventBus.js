@@ -4,6 +4,7 @@ class EventBus {
     this.clients = new Set();
     this.eventHistory = [];
     this.maxHistory = 100; // Mantener solo los últimos 100 eventos
+    this.blacklist = new Set(); // pares trendLink|newsletterId para ocultar
   }
 
   // Agregar un nuevo cliente (frontend)
@@ -44,6 +45,11 @@ class EventBus {
     const message = `data: ${JSON.stringify(eventData)}\n\n`;
     this.clients.forEach(client => {
       try {
+        // Filtrar eventos newTrend si están en blacklist
+        if (eventData.type === 'newTrend') {
+          const key = `${eventData.data?.trendLink || ''}|${eventData.data?.newsletterId ?? 'null'}`;
+          if (this.blacklist.has(key)) return;
+        }
         client.write(message);
       } catch (error) {
         console.error('Error enviando evento a cliente:', error);
@@ -52,6 +58,18 @@ class EventBus {
     });
 
     console.log(`📡 Evento broadcast enviado: ${event.type} a ${this.clients.size} clientes`);
+  }
+
+  // Registrar clave para no volver a mostrar un trend eliminado
+  addToBlacklist(trendLink, newsletterId) {
+    const key = `${trendLink || ''}|${newsletterId ?? 'null'}`;
+    this.blacklist.add(key);
+  }
+
+  // Consultar si un par está bloqueado
+  isBlacklisted(trendLink, newsletterId) {
+    const key = `${trendLink || ''}|${newsletterId ?? 'null'}`;
+    return this.blacklist.has(key);
   }
 
   // Notificar nuevo trend agregado
