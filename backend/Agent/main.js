@@ -966,6 +966,8 @@ export async function procesarUrlsYPersistir(items = []) {
               } catch (eventError) {
                 console.error('Error notificando nuevo trend:', eventError);
               }
+            } else if (createdTrend?.duplicated) {
+              console.log('⛔ Relación duplicada evitada (auto):', url, payload.id_newsletter, payload.Nombre_Newsletter_Relacionado);
             }
           } catch (e) {
             console.error(`Error creando trend para ${url}:`, e?.message || e);
@@ -1010,6 +1012,8 @@ export async function procesarUrlsYPersistir(items = []) {
             } catch (eventError) {
               console.error('Error notificando nuevo trend:', eventError);
             }
+          } else if (createdTrend?.duplicated) {
+            console.log('⛔ Relación duplicada evitada (auto, sin newsletter):', url);
           }
         } catch (e) {
           console.error(`Error creando trend sin newsletter para ${url}:`, e?.message || e);

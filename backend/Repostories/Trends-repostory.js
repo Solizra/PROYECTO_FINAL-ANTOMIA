@@ -7,25 +7,39 @@ export default class TrendsRepository {
     const client = new Client(DBConfig);
     try {
       await client.connect();
+      // Completar nombre de newsletter si viene vacío pero hay id_newsletter
+      if ((!record.Nombre_Newsletter_Relacionado || record.Nombre_Newsletter_Relacionado.trim() === '') && record.id_newsletter != null) {
+        try {
+          const nlRes = await client.query('SELECT "titulo" FROM "Newsletter" WHERE "id" = $1 LIMIT 1', [record.id_newsletter]);
+          const t = nlRes.rows?.[0]?.titulo;
+          if (t) record.Nombre_Newsletter_Relacionado = t;
+        } catch (e) {
+          console.error('Error obteniendo titulo de Newsletter para completar nombre relacionado:', e);
+        }
+      }
       // Chequeo de duplicados: misma noticia (Link_del_Trend) y mismo newsletter (id_newsletter) y mismo flag Relacionado
       try {
         const checkSql = `
           SELECT "id"
           FROM "Trends"
           WHERE "Link_del_Trend" = $1
+            AND ("Relacionado" = $4)
             AND (
-              ($2 IS NULL AND "id_newsletter" IS NULL)
-              OR ("id_newsletter" = $2)
+              ($2 IS NOT NULL AND "id_newsletter" = $2)
+              OR (
+                $2 IS NULL AND $3 <> '' AND lower(COALESCE("Nombre_Newsletter_Relacionado", '')) = lower($3)
+              )
+              OR (
+                $2 IS NULL AND $3 = '' AND "id_newsletter" IS NULL AND COALESCE("Nombre_Newsletter_Relacionado", '') = ''
+              )
             )
-            AND ("Relacionado" = $3)
-            AND COALESCE("Nombre_Newsletter_Relacionado", '') = COALESCE($4, '')
           LIMIT 1;
         `;
         const checkParams = [
-          record.Link_del_Trend ?? '',
+          (record.Link_del_Trend ?? '').trim(),
           record.id_newsletter ?? null,
-          record.Relacionado === true,
-          record.Nombre_Newsletter_Relacionado ?? ''
+          (record.Nombre_Newsletter_Relacionado ?? '').trim(),
+          record.Relacionado === true
         ];
         const existing = await client.query(checkSql, checkParams);
         if (existing.rows.length > 0) {
@@ -91,12 +105,13 @@ export default class TrendsRepository {
     try {
       await client.connect();
       // Devolver solo una fila por par (Link_del_Trend, id_newsletter), priorizando la más reciente
+      // y excluir pares que estén en la blacklist de EventBus (si existe en proceso)
       const sql = `
-        SELECT DISTINCT ON ("Link_del_Trend", COALESCE("id_newsletter", -1))
-               "id", "id_newsletter", "Título_del_Trend", "Link_del_Trend",
-               "Nombre_Newsletter_Relacionado", "Fecha_Relación", "Relacionado", "Analisis_relacion"
-        FROM "Trends"
-        ORDER BY "Link_del_Trend", COALESCE("id_newsletter", -1), "id" DESC
+        SELECT DISTINCT ON (t."Link_del_Trend", COALESCE(t."id_newsletter", -1))
+               t."id", t."id_newsletter", t."Título_del_Trend", t."Link_del_Trend",
+               t."Nombre_Newsletter_Relacionado", t."Fecha_Relación", t."Relacionado", t."Analisis_relacion"
+        FROM "Trends" t
+        ORDER BY t."Link_del_Trend", COALESCE(t."id_newsletter", -1), t."id" DESC
         LIMIT $1 OFFSET $2
       `;
       const result = await client.query(sql, [limit, offset]);

@@ -140,7 +140,15 @@ function Home() {
               seen.add(key);
               return true;
             });
-            return sortByDateDesc([...prev, ...nuevosUnicos]);
+            // Evitar duplicados también por id si backend reusa id
+            const byId = new Set(prev.map(p => String(p.id)));
+            const dedupPorId = nuevosUnicos.filter(f => {
+              const fid = String(f.id);
+              if (byId.has(fid)) return false;
+              byId.add(fid);
+              return true;
+            });
+            return sortByDateDesc([...prev, ...dedupPorId]);
           });
         }
               } catch (e) {
@@ -193,9 +201,10 @@ function Home() {
                 // Agregar nuevo trend a la lista
                 const newTrend = data.data;
                 setTrends(prev => {
-                  console.log('📊 Trends anteriores:', prev.length);
+                  const key = `${newTrend.trendLink}|${newTrend.newsletterId ?? 'null'}`;
+                  const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+                  if (seen.has(key)) return prev; // evitar duplicado
                   const updated = [newTrend, ...prev];
-                  console.log('📊 Trends actualizados:', updated.length);
                   return sortByDateDesc(updated);
                 });
                 console.log('✅ Nuevo trend agregado en tiempo real:', newTrend.trendTitulo);
@@ -255,7 +264,14 @@ function Home() {
                     .map(e => e.data);
                   if (recentTrends.length > 0) {
                     setTrends(prev => {
-                      const combined = [...recentTrends, ...prev];
+                      const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+                      const uniqueRecent = recentTrends.filter(t => {
+                        const k = `${t.trendLink}|${t.newsletterId ?? 'null'}`;
+                        if (seen.has(k)) return false;
+                        seen.add(k);
+                        return true;
+                      });
+                      const combined = [...uniqueRecent, ...prev];
                       return sortByDateDesc(combined);
                     });
                   }
@@ -517,8 +533,20 @@ function Home() {
           }))
         : (baseFilas.length > 0 ? baseFilas : []);
 
-      // Agregar a la tabla local
-      setTrends((prev) => sortByDateDesc([...prev, ...filas]));
+      // Agregar a la tabla local evitando duplicados por clave y por id
+      setTrends((prev) => {
+        const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+        const byId = new Set(prev.map(p => String(p.id)));
+        const nuevosUnicos = filas.filter(f => {
+          const key = `${f.trendLink}|${f.newsletterId ?? 'null'}`;
+          const fid = String(f.id);
+          if (seen.has(key) || byId.has(fid)) return false;
+          seen.add(key);
+          byId.add(fid);
+          return true;
+        });
+        return sortByDateDesc([...prev, ...nuevosUnicos]);
+      });
       
       // Mostrar mensaje de éxito
       if (data.inserts && data.inserts.length > 0) {
