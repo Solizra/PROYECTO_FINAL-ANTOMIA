@@ -351,14 +351,17 @@ async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
 async function esClimatechIA(contenido) {
   try {
     console.log("Entre a esClimatechIA");
-    const resp = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Eres un experto en sostenibilidad y tecnologías climáticas." },
-        { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH. 
+    const textoAnalisis = typeof contenido === 'string' ? contenido : String(contenido || '');
+    const previewEntrada = textoAnalisis.substring(0, 220) + (textoAnalisis.length > 220 ? '…' : '');
+    console.log(`[esClimatechIA] Longitud del texto a evaluar: ${textoAnalisis.length}`);
+    console.log(`[esClimatechIA] Preview del texto a evaluar: ${previewEntrada}`);
+
+    const messages = [
+      { role: "system", content: "Eres un experto en sostenibilidad y tecnologías climáticas." },
+      { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH. 
       CLIMATECH se define como cualquier conjunto de tecnologías e innovaciones que buscan combatir el cambio climático, reducir emisiones de gases de efecto invernadero, mitigar impactos ambientales o promover la adaptación a nuevas condiciones climáticas.
       
-      ⚠️ Además, considera como CLIMATECH cualquier artículo que hable de la relación entre TECNOLOGÍA (de cualquier tipo, incluso digital, IA, telecomunicaciones, etc.) y el MEDIO AMBIENTE o el CAMBIO CLIMÁTICO. 
+      ⚠️ Además, considera como CLIMATECH cualquier artículo que hable de la relación entre TECNOLOGÍA (de cualquier tipo, incluso digital, IA, telecomunicaciones, producción de energía, satélites, etc.) y el MEDIO AMBIENTE o el CAMBIO CLIMÁTICO. 
       Ejemplo: una noticia sobre "La sed de ChatGPT: la IA consume una cantidad de agua alarmante" debe considerarse CLIMATECH porque conecta el impacto ambiental con una tecnología.
       
       Instrucciones:
@@ -367,15 +370,23 @@ async function esClimatechIA(contenido) {
       3. Luego, independientemente de si tu respuesta es 'SI' o 'NO', da una breve explicación (1-3 frases) justificando tu decisión.
       
       Noticia a evaluar:
-      ${contenido}` }
-      ]
+      ${textoAnalisis}` }
+    ];
+
+    console.log(`[esClimatechIA] Enviando prompt al modelo (gpt-4o-mini).`);
+    const resp = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages
     });
     const salida = resp?.choices?.[0]?.message?.content?.trim?.() || "";
+    console.log(`[esClimatechIA] Respuesta RAW del modelo: ${salida}`);
     const esClimatech = salida.toLowerCase().startsWith("si");
+    console.log(`[esClimatechIA] Decisión calculada: ${esClimatech ? 'SI' : 'NO'}`);
     return { esClimatech, razon: salida };
   } catch (err) {
     if (err?.cause?.code === 'SELF_SIGNED_CERT_IN_CHAIN' || err?.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
       try {
+        console.log('[esClimatechIA] Reintentando con cliente inseguro debido a SELF_SIGNED_CERT_IN_CHAIN');
         const resp2 = await insecureClient.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -392,11 +403,13 @@ async function esClimatechIA(contenido) {
       3. Luego, independientemente de si tu respuesta es 'SI' o 'NO', da una breve explicación (1-3 frases) justificando tu decisión.
       
       Noticia a evaluar:
-      ${contenido}` }
+      ${typeof contenido === 'string' ? contenido : String(contenido || '')}` }
           ]
         });
         const salida2 = resp2?.choices?.[0]?.message?.content?.trim?.() || "";
+        console.log(`[esClimatechIA] Respuesta RAW del modelo (retry): ${salida2}`);
         const esClimatech2 = salida2.toLowerCase().startsWith("si");
+        console.log(`[esClimatechIA] Decisión calculada (retry): ${esClimatech2 ? 'SI' : 'NO'}`);
         return { esClimatech: esClimatech2, razon: salida2 };
       } catch (err2) {
         console.error("Error en clasificación IA (retry inseguro):", err2);
@@ -477,16 +490,7 @@ export async function obtenerNewslettersBDD() {
       }
       
       console.log(`✅ Se obtuvieron ${newsletters.length} newsletters de la BDD`);
-      
-      // Log adicional para confirmar que se obtuvieron todos
-      if (newsletters.length > 0) {
-        console.log(`📊 Primer newsletter: ${newsletters[0].titulo || 'Sin título'}`);
-        console.log(`📊 Último newsletter: ${newsletters[newsletters.length - 1].titulo || 'Sin título'}`);
-        
-      } else {
-        console.log(`⚠️ No se encontraron newsletters en la base de datos`);
-      }
-      
+          
       return newsletters;
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -500,6 +504,79 @@ export async function obtenerNewslettersBDD() {
   }
 }
 
+// Función para filtrar newsletters por palabras clave antes del análisis de IA
+function filtrarNewslettersPorPalabrasClave(resumenNoticia, newsletters) {
+  try {
+    console.log(`🔍 [FILTRO POR NOTICIA] Filtrando newsletters por palabras clave antes del análisis de IA...`);
+    
+    if (!Array.isArray(newsletters) || newsletters.length === 0) {
+      return [];
+    }
+
+    const resumen = typeof resumenNoticia === 'string' ? resumenNoticia : String(resumenNoticia || '');
+    const resumenNormalizado = removeDiacritics(resumen.toLowerCase());
+    
+    // Extraer tokens del resumen de la noticia
+    const tokensNoticia = tokenize(resumen);
+    const tokensNoticiaSet = new Set(tokensNoticia);
+    
+    const newslettersFiltrados = [];
+    
+    for (const newsletter of newsletters) {
+      const textoNewsletter = `${newsletter.titulo || ''}\n\n${newsletter.Resumen || ''}`.trim();
+      const tokensNewsletter = tokenize(textoNewsletter);
+      const tokensNewsletterSet = new Set(tokensNewsletter);
+      
+      // Calcular coincidencias de tokens
+      const coincidenciasTokens = [...tokensNoticiaSet].filter(token => tokensNewsletterSet.has(token));
+      
+      // Calcular coincidencias de palabras clave específicas de climatech
+      let coincidenciasClave = 0;
+      for (const keyword of CLIMATECH_KEYWORDS) {
+        const keywordNormalizado = removeDiacritics(keyword.toLowerCase());
+        if (resumenNormalizado.includes(keywordNormalizado) && 
+            removeDiacritics(textoNewsletter.toLowerCase()).includes(keywordNormalizado)) {
+          coincidenciasClave++;
+        }
+      }
+      
+      // Calcular score de similitud usando Jaccard
+      const similitudJaccard = jaccard(tokensNoticiaSet, tokensNewsletterSet);
+      
+      // Criterios para pasar el filtro:
+      // - Al menos 3 tokens en común, O
+      // - Al menos 1 palabra clave de climatech en común, O  
+      // - Similitud Jaccard >= 0.1
+      const pasaFiltro = coincidenciasTokens.length >= 5 || 
+                        coincidenciasClave >= 2 || 
+                        similitudJaccard >= 0.1;
+      
+      if (pasaFiltro) {
+        newslettersFiltrados.push({
+          ...newsletter,
+          _scoreFiltro: {
+            coincidenciasTokens: coincidenciasTokens.length,
+            coincidenciasClave,
+            similitudJaccard: Math.round(similitudJaccard * 100) / 100
+          }
+        });
+        
+        console.log(`✅ Newsletter pasa filtro: ${newsletter.titulo} (tokens: ${coincidenciasTokens.length}, claves: ${coincidenciasClave}, jaccard: ${Math.round(similitudJaccard * 100) / 100})`);
+      } else {
+        console.log(`❌ Newsletter filtrado: ${newsletter.titulo} (tokens: ${coincidenciasTokens.length}, claves: ${coincidenciasClave}, jaccard: ${Math.round(similitudJaccard * 100) / 100})`);
+      }
+    }
+    
+    console.log(`📊 [FILTRO POR NOTICIA] Filtro completado: ${newslettersFiltrados.length}/${newsletters.length} newsletters pasan el filtro de palabras clave para esta noticia`);
+    return newslettersFiltrados;
+    
+  } catch (error) {
+    console.error(`❌ Error en filtro de palabras clave: ${error.message}`);
+    // Si hay error en el filtro, devolver todos los newsletters para que la IA los procese
+    return newsletters;
+  }
+}
+
 // Función para comparar noticia con newsletters usando IA (Chat)
 async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '') {
   try {
@@ -510,17 +587,25 @@ async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNotic
       return { relacionados: [], motivoSinRelacion: 'No hay newsletters disponibles para comparar.' };
     }
 
-    console.log(`📊 Procesando todos los ${newsletters.length} newsletters para encontrar coincidencias... SE TIENE QUE HACER CON CHAT`);
+    // APLICAR FILTRO DE PALABRAS CLAVE ANTES DEL ANÁLISIS DE IA
+    const newslettersFiltrados = filtrarNewslettersPorPalabrasClave(resumen, newsletters);
+    
+    if (newslettersFiltrados.length === 0) {
+      console.log(`⚠️ Ningún newsletter pasó el filtro de palabras clave`);
+      return { relacionados: [], motivoSinRelacion: 'No hay newsletters con palabras clave relevantes para esta noticia.' };
+    }
+
+    console.log(`📊 [ANÁLISIS IA POR NOTICIA] Procesando ${newslettersFiltrados.length} newsletters filtrados (de ${newsletters.length} total) con IA para esta noticia...`);
 
     const relacionados = [];
     const noRelacionRazones = [];
-    for (let i = 0; i < newsletters.length; i++) {
-      const nl = newsletters[i];
+    for (let i = 0; i < newslettersFiltrados.length; i++) {
+      const nl = newslettersFiltrados[i];
       const textoDoc = `${nl.titulo || ''}\n\n${nl.Resumen || ''}`.trim();
       const prompt = `Debes decidir si el resumen de una noticia está relacionado con el resumen de un newsletter. Responde SOLO con JSON válido con estas claves: relacionado (\"SI\" o \"NO\"), razon (máx 2 frases, breve), score (0-100, opcional).\n\nResumen de noticia:\n${resumen}\n\nNewsletter:\n${textoDoc}`;
 
       try {
-        console.log(`\n🧪 Evaluando newsletter ${i + 1}/${newsletters.length}: ${nl.titulo || 'Sin título'}`);
+        console.log(`\n🧪 [EVALUACIÓN IA] Evaluando newsletter ${i + 1}/${newslettersFiltrados.length} para esta noticia: ${nl.titulo || 'Sin título'}`);
         const content = await chatCompletionJSON([
           { role: "system", content: "Responde solo con JSON válido. Ejemplo: {\\\"relacionado\\\":\\\"SI\\\",\\\"razon\\\":\\\"Comparten tema de energía solar\\\",\\\"score\\\":82}" },
           { role: "user", content: prompt }
@@ -528,7 +613,6 @@ async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNotic
         console.log(`🔎 Respuesta RAW del modelo: ${content}`);
         let parsed = null;
         try { parsed = JSON.parse(content); } catch { parsed = null; }
-        console.log(`🧩 Parsed:`, parsed);
         const score = Math.max(0, Math.min(100, Number(parsed?.score ?? 0)));
         const razon = typeof parsed?.razon === 'string' ? parsed.razon : '';
         const relacionado = String(parsed?.relacionado || '').toUpperCase() === 'SI';
@@ -553,12 +637,12 @@ async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNotic
       ? (noRelacionRazones[0] || 'No hay coincidencias temáticas claras entre la noticia y los newsletters.')
       : '';
 
-    console.log(`\n📊 Resultado final - relacionados: ${topRelacionados.length}`);
+    console.log(`\n📊 [RESULTADO FINAL POR NOTICIA] Newsletter relacionados encontrados: ${topRelacionados.length}`);
     topRelacionados.forEach((nl, idx) => {
       console.log(`   ${idx + 1}. ${nl.titulo} (puntuación: ${nl.puntuacion ?? 'N/D'}) | Motivo: ${nl.analisisRelacion || ''}`);
     });
     if (topRelacionados.length === 0 && motivoSinRelacion) {
-      console.log(`ℹ️ Motivo sin relación: ${motivoSinRelacion}`);
+      console.log(`ℹ️ [RESULTADO POR NOTICIA] Motivo sin relación: ${motivoSinRelacion}`);
     }
 
     return { relacionados: topRelacionados, motivoSinRelacion };
@@ -697,23 +781,50 @@ async function analizarNoticia(input) {
 
 // Función para analizar noticia y devolver estructura para API
 export async function analizarNoticiaEstructurada(url) {
-  console.log ("entre a:  analizarNoticiaEstructurada (verificar que es)")
+  console.log(`\n🔍 INICIANDO ANÁLISIS INDIVIDUAL DE NOTICIA: ${url}`);
+  
   const extraido = await extraerContenidoNoticia(url);
   if (!extraido) return null;
 
   const textoNoticia = extraido.contenido || '';
 
+  console.log(`📝 Título extraído: ${extraido.titulo || 'Sin título'}`);
+  console.log(`📄 Contenido extraído: ${textoNoticia.length} caracteres`);
+
   // IA
+  console.log(`\n🤖 GENERANDO RESUMEN CON IA...`);
   const resumen = await generarResumenIA(textoNoticia);
+  console.log(`✅ Resumen generado: ${typeof resumen === 'string' ? resumen.substring(0, 100) + '...' : 'No disponible'}`);
+
+  console.log(`\n🌱 CLASIFICANDO SI ES CLIMATECH CON IA...`);
   const clasificacion = await esClimatechIA(textoNoticia);
+  console.log(`✅ Clasificación: ${clasificacion.esClimatech ? 'SÍ es Climatech' : 'NO es Climatech'}`);
+  if (!clasificacion.esClimatech) {
+    console.log(`📋 Motivo: ${clasificacion.razon || 'Sin motivo'}`);
+    return {
+      url,
+      titulo: extraido.titulo || '',
+      autor: extraido.autor || '',
+      resumen,
+      esClimatech: false,
+      razonClimatech: clasificacion.razon || '',
+      newslettersRelacionados: [],
+      motivoSinRelacion: 'No es Climatech'
+    };
+  }
 
   // BD
+  console.log(`\n📊 OBTENIENDO NEWSLETTERS DE LA BASE DE DATOS...`);
   const newsletters = await obtenerNewslettersBDD();
 
   // Comparación local: obtener top relacionados desde el comparador
+  console.log(`\n🔍 INICIANDO FILTRADO DE PALABRAS CLAVE + ANÁLISIS IA PARA ESTA NOTICIA...`);
   const { relacionados, motivoSinRelacion } = Array.isArray(newsletters)
     ? await compararConNewslettersLocal(typeof resumen === 'string' ? resumen : textoNoticia, newsletters, url)
     : { relacionados: [], motivoSinRelacion: 'No hay newsletters para comparar.' };
+
+  console.log(`\n✅ ANÁLISIS COMPLETADO PARA ESTA NOTICIA`);
+  console.log(`📊 Newsletters relacionados encontrados: ${relacionados.length}`);
 
   // Adaptar salida a lo que esperan los consumidores aguas abajo
   return {
@@ -738,13 +849,20 @@ export async function analizarNoticiaEstructurada(url) {
 export async function procesarUrlsYPersistir(items = []) {
   if (!Array.isArray(items) || items.length === 0) return [];
 
+  console.log(`\n🚀 INICIANDO PROCESAMIENTO DE ${items.length} NOTICIAS INDIVIDUALMENTE`);
+  console.log(`📋 Cada noticia será analizada por separado con filtrado de palabras clave + IA\n`);
+
   const trendsSvc = new TrendsService();
   const resultados = [];
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     const url = (typeof item === 'string') ? item : (item?.url || '');
     const tituloTrend = (typeof item === 'object') ? (item?.title || item?.titulo || 'Sin título') : 'Sin título';
     if (!url) continue;
+
+    console.log(`\n📰 PROCESANDO NOTICIA ${i + 1}/${items.length}: ${tituloTrend}`);
+    console.log(`🔗 URL: ${url}`);
 
     try {
       const resultado = await analizarNoticiaEstructurada(url);

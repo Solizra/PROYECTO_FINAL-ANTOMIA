@@ -22,15 +22,15 @@ export default class TrendsRepository {
         const checkSql = `
           SELECT "id"
           FROM "Trends"
-          WHERE "Link_del_Trend" = $1
-            AND ("Relacionado" = $4)
+          WHERE "Link_del_Trend" = $1::text
+            AND ("Relacionado" = $4::boolean)
             AND (
-              ($2 IS NOT NULL AND "id_newsletter" = $2)
+              ($2::int IS NOT NULL AND "id_newsletter" = $2::int)
               OR (
-                $2 IS NULL AND $3 <> '' AND lower(COALESCE("Nombre_Newsletter_Relacionado", '')) = lower($3)
+                $2::int IS NULL AND $3::text <> '' AND lower(COALESCE("Nombre_Newsletter_Relacionado", '')) = lower($3::text)
               )
               OR (
-                $2 IS NULL AND $3 = '' AND "id_newsletter" IS NULL AND COALESCE("Nombre_Newsletter_Relacionado", '') = ''
+                $2::int IS NULL AND $3::text = '' AND "id_newsletter" IS NULL AND COALESCE("Nombre_Newsletter_Relacionado", '') = ''
               )
             )
           LIMIT 1;

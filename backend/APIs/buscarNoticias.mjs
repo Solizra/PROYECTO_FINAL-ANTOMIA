@@ -213,13 +213,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const noticiasFilePath = path.join(__dirname, 'noticias.json');
 
-// maxResults: máximo de resultados a devolver (1..100). Por defecto 20
-async function buscarNoticias(maxResults = 30) { // traer más resultados por defecto
+// maxResults: máximo de resultados a devolver (1..100). Por defecto 3
+async function buscarNoticias(maxResults = 3) { // limitado a 3 noticias máximo
   try {
     // Calcular el rango de fechas en cada ejecución (ventana móvil)
     const fechaActual = new Date();
     const fromDate = restarDias(fechaActual, 30);
-    const pageSize = Math.min(Math.max(parseInt(maxResults, 10) || 20, 1), 100);
+    const pageSize = Math.min(Math.max(parseInt(maxResults, 10) || 3, 1), 100);
     const fromDateISO = (fromDate instanceof Date ? fromDate : new Date(fromDate))
       .toISOString()
       .split('T')[0]; // usar solo la fecha para mayor compatibilidad
@@ -308,6 +308,13 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
     fs.writeFileSync(noticiasFilePath, JSON.stringify(minimal, null, 2));
 
 
+    // Mostrar las noticias que trajo la API
+    console.log(`📰 Noticias obtenidas de la API (${minimal.length}):`);
+    minimal.forEach((noticia, index) => {
+      console.log(`  ${index + 1}. ${noticia.title} (${noticia.source}) - ${noticia.url}`);
+    });
+    console.log('');
+
     // Enviar URLs al agente para analizar y (si corresponde) persistir en Trends.
     // Si hubo errores de extracción, el agente responderá con esClimatech=false y no se insertará.
     try {
@@ -364,11 +371,11 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
 function iniciarProgramacionAutomatica() {
   
   
-  // Esperar 30 segundos para que el frontend se conecte al SSE
-  console.log('⏳ Esperando 30 segundos para que el frontend se conecte...');
+  // Esperar 10 segundos para que el frontend se conecte al SSE
+  console.log('⏳ Esperando 10 segundos para que el frontend se conecte...');
   setTimeout(() => {
     buscarNoticias();
-  }, 30000);
+  }, 10000);
   
   // Programar ejecución cada 30 minutos (cambiado de cada minuto para evitar spam)
   const cronExpression = '*/30 * * * *'; // Cada 30 minutos

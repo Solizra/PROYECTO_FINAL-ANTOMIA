@@ -15,12 +15,6 @@ const possiblePaths = [
   join(process.cwd(), '.env')        // directorio de trabajo actual/.env
 ];
 
-console.log('🔍 Buscando archivo .env en las siguientes rutas:');
-possiblePaths.forEach(path => {
-  const exists = fs.existsSync(path);
-  console.log(`${exists ? '✅' : '❌'} ${path}`);
-});
-
 // Cargar el primer archivo .env que exista
 let envLoaded = false;
 for (const path of possiblePaths) {
@@ -36,8 +30,6 @@ if (!envLoaded) {
   console.log('⚠️  No se encontró archivo .env, usando valores por defecto');
 }
 
-console.log('🔧 Configuración de Base de Datos:');
-console.log('📁 Directorio actual:', __dirname);
 console.log('🔍 Variables de entorno:');
 console.log('  DB_HOST:', process.env.DB_HOST || 'NO DEFINIDO');
 console.log('  DB_DATABASE:', process.env.DB_DATABASE || 'NO DEFINIDO');
