@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { procesarUrlsYPersistir } from '../Agent/main.js';
+import FuentesService from '../Services/Fuentes-services.js';
 
 // 🔐 Pegá tu clave acá
 const API_KEY = '5cd26781b7d64a329de50c8899fc5eaa'; 
@@ -20,53 +21,7 @@ const query = `(
   "medio ambiente" OR "adaptación climática" OR "regulación climática" OR "cambio climático" OR "eficiencia energética" OR "emisiones" OR sostenibilidad OR "energía renovable" OR "energias renovables" OR climatech OR cleantech OR "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular" OR "tecnología climática" OR "captura de carbono" OR "Inteligencia Artificial" OR IA OR "IA climática" OR "finanzas climáticas" OR "cero neto" OR "transición energética" OR ESG
 )`;
 
-// 📰 Medios confiables (dominios) para restringir resultados - MEJORADOS para climatech
-const trustedDomains = [
-  // Fuentes internacionales premium de climatech
-  'techcrunch.com',
-  'wired.com',
-  'theverge.com',
-  'arstechnica.com',
-  'mit.edu',
-  'nature.com',
-  'science.org',
-  'reuters.com',
-  'bloomberg.com',
-  'ft.com',
-  'wsj.com',
-  'cnn.com',
-  'bbc.com',
-  
-  // Fuentes especializadas en climatech
-  'cleantechnica.com',
-  'greentechmedia.com',
-  'carbonbrief.org',
-  'insideclimatenews.org',
-  'climatechreview.com',
-  
-  // Fuentes especializadas en medio ambiente y sostenibilidad (NUEVAS)
-  'mongabay.com',
-  'ensia.com',
-  'grist.org',
-  'treehugger.com',
-  'ecowatch.com',
-  'scientificamerican.com',
-  'nationalgeographic.com',
-  'audubon.org',
-  'wwf.org',
-  'conservation.org',
-  'nature.org',
-  'iucn.org',
-  'unep.org',
-  'ipcc.ch',
-  
-  // Fuentes en español confiables
-  'elpais.com',
-  'elconfidencial.com',
-  'nationalgeographic.com',
-  'ambito.com',
-  'infobae.com'
-];
+// Los dominios confiables ahora se cargan desde la BDD (tabla Fuentes)
 const sortBy = 'relevancy';
 const language = 'es';
 // Palabras clave para filtrar temática - MEJORADAS para climatech trending
@@ -115,7 +70,7 @@ function removeDiacriticsLocal(str) {
 }
 
 // Sistema de scoring para priorizar noticias más relevantes
-function calculateNewsScore(article) {
+function calculateNewsScore(article, trustedDomains) {
   let score = 0;
   
   try {
@@ -140,7 +95,7 @@ function calculateNewsScore(article) {
       score += 12;
     }
     // Otras fuentes confiables
-    else if (trustedDomains.some(d => hostname.includes(d))) {
+    else if (Array.isArray(trustedDomains) && trustedDomains.some(d => hostname.includes(d))) {
       score += 8;
     }
     
@@ -216,6 +171,9 @@ const noticiasFilePath = path.join(__dirname, 'noticias.json');
 // maxResults: máximo de resultados a devolver (1..100). Por defecto 20
 async function buscarNoticias(maxResults = 30) { // traer más resultados por defecto
   try {
+    // Cargar dominios desde la base de datos (con fallback dentro del service)
+    const fuentesSvc = new FuentesService();
+    const trustedDomains = await fuentesSvc.getTrustedDomainsAsync();
     // Calcular el rango de fechas en cada ejecución (ventana móvil)
     const fechaActual = new Date();
     const fromDate = restarDias(fechaActual, 30);
@@ -234,7 +192,7 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
       `&pageSize=${pageSize}` +
       `&page=1` +
       // Restringir a dominios confiables desde la propia API
-      `&domains=${encodeURIComponent(trustedDomains.join(','))}` +
+      `&domains=${encodeURIComponent((trustedDomains || []).join(','))}` +
       `&apiKey=${API_KEY}`;
 
     const res = await fetch(url);
@@ -251,7 +209,7 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
     let filtered = allArticles.filter(a => {
       try {
         const urlObj = new URL(a.url || '');
-        return trustedDomains.some(d => urlObj.hostname.includes(d));
+        return Array.isArray(trustedDomains) && trustedDomains.some(d => urlObj.hostname.includes(d));
       } catch {
         return false;
       }
@@ -260,7 +218,7 @@ async function buscarNoticias(maxResults = 30) { // traer más resultados por de
     // Aplicar sistema de scoring y ordenar por relevancia
     const scoredArticles = filtered.map(article => ({
       ...article,
-      score: calculateNewsScore(article)
+      score: calculateNewsScore(article, trustedDomains)
     }));
     
     // Ordenar por score (más alto primero) y luego por fecha
