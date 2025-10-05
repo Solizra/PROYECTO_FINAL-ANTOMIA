@@ -63,7 +63,6 @@ const trustedDomains = [
   // Fuentes en español confiables
   'elpais.com',
   'elconfidencial.com',
-  'eldiario.es',
   'nationalgeographic.com',
   'ambito.com',
   'infobae.com'
@@ -137,7 +136,7 @@ function calculateNewsScore(article) {
       score += 15;
     }
     // Fuentes en español confiables
-    else if (['elpais.com', 'elmundo.es', 'elconfidencial.com', 'eldiario.es'].includes(hostname)) {
+    else if (['elpais.com', 'elmundo.es', 'elconfidencial.com'].includes(hostname)) {
       score += 12;
     }
     // Otras fuentes confiables

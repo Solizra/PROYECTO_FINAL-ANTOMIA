@@ -61,7 +61,7 @@ const CLIMATECH_KEYWORDS = [
   'construcción verde', 'edificios sostenibles', 'arquitectura bioclimática',
   'logística verde', 'industria 4.0', 'tecnología limpia',
   'economía verde', 'empleos verdes', 'inversión responsable',
-  'ESG', 'criterios ambientales', 'finanzas verdes',
+  'ESG', 'criterios ambientales', 'finanzas verdes', 'incendio forestal',
   'política ambiental', 'regulación climática', 'acuerdos ambientales'
 ];
 
@@ -228,41 +228,198 @@ function hasAnyTerm(normText, termsSet) {
 // Función para extraer contenido de noticias desde URLs
 async function extraerContenidoNoticia(url) {
   try {
-   // console.log(`🔗 Extrayendo contenido de: ${url}`);
+    console.log(`🔗 Extrayendo contenido de: ${url}`);
     
-    const res = await fetch(url, { agent: httpsAgent });
+    const res = await fetch(url, { 
+      agent: httpsAgent,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
     if (!res.ok) throw new Error(`Error HTTP: ${res.status} ${res.statusText}`);
 
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    // Extraer título
-    let titulo = $('title').text().trim() || 
-                 $('h1').first().text().trim() || 
-                 $('meta[property="og:title"]').attr('content') || 
-                 'Sin título';
+    // Limpiar elementos no deseados
+    $('script, style, noscript, iframe, img, video, audio, form, nav, header, footer, aside, .ad, .advertisement, .social, .share, .comments, .related, .sidebar').remove();
+
+    // Extraer título con múltiples estrategias
+    let titulo = '';
+    
+    // 1. Meta tags de Open Graph
+    titulo = $('meta[property="og:title"]').attr('content') || 
+             $('meta[name="twitter:title"]').attr('content') || '';
+    
+    // 2. Meta tags estándar
+    if (!titulo) {
+      titulo = $('meta[name="title"]').attr('content') || 
+               $('title').text().trim() || '';
+    }
+    
+    // 3. H1 principal
+    if (!titulo) {
+      titulo = $('h1').first().text().trim() || '';
+    }
+    
+    // 4. H2 si no hay H1
+    if (!titulo) {
+      titulo = $('h2').first().text().trim() || '';
+    }
+
+    // Limpiar título
+    titulo = titulo.replace(/\s+/g, ' ').trim();
+    if (titulo.length > 200) titulo = titulo.substring(0, 200) + '...';
 
     // Metadatos
-    const siteName = $('meta[property="og:site_name"]').attr('content') || $('meta[name="application-name"]').attr('content') || '';
-    const author = $('meta[name="author"]').attr('content') || $('meta[property="article:author"]').attr('content') || '';
-    const published = $('meta[property="article:published_time"]').attr('content') || $('meta[name="date"]').attr('content') || $('meta[itemprop="datePublished"]').attr('content') || '';
+    const siteName = $('meta[property="og:site_name"]').attr('content') || 
+                     $('meta[name="application-name"]').attr('content') || 
+                     $('meta[name="publisher"]').attr('content') || '';
+    
+    const author = $('meta[name="author"]').attr('content') || 
+                   $('meta[property="article:author"]').attr('content') || 
+                   $('meta[name="byline"]').attr('content') || 
+                   $('.author, .byline, [class*="author"], [class*="byline"]').first().text().trim() || '';
+    
+    const published = $('meta[property="article:published_time"]').attr('content') || 
+                      $('meta[name="date"]').attr('content') || 
+                      $('meta[itemprop="datePublished"]').attr('content') || 
+                      $('meta[name="publish_date"]').attr('content') || '';
 
-    // Extraer contenido principal
-    const parrafos = $('p, article, .content, .article-content, .post-content')
-      .map((_, el) => $(el).text().trim())
+    // Estrategia mejorada para extraer contenido principal
+    let contenido = '';
+    let parrafos = [];
+
+    // Estrategia 1: Buscar en contenedores específicos de artículos
+    const articleSelectors = [
+      'article',
+      '.article',
+      '.post',
+      '.entry',
+      '.content',
+      '.story',
+      '.news',
+      '.main-content',
+      '.post-content',
+      '.article-content',
+      '.entry-content',
+      '.story-content',
+      '.news-content',
+      '[role="main"]',
+      'main'
+    ];
+
+    for (const selector of articleSelectors) {
+      const article = $(selector);
+      if (article.length > 0) {
+        console.log(`📰 Encontrado contenedor: ${selector}`);
+        
+        // Extraer párrafos del artículo
+        const articleParrafos = article.find('p, h2, h3, h4, h5, h6, blockquote, li')
+          .map((_, el) => {
+            const texto = $(el).text().trim();
+            return texto;
+          })
       .get()
-      .filter(texto => texto.length > 20 && !texto.includes('cookie') && !texto.includes('privacy'));
+          .filter(texto => 
+            texto.length > 30 && 
+            !texto.includes('cookie') && 
+            !texto.includes('privacy') && 
+            !texto.includes('advertisement') &&
+            !texto.includes('subscribe') &&
+            !texto.includes('newsletter') &&
+            !texto.includes('follow us') &&
+            !texto.includes('share this') &&
+            !texto.includes('comment') &&
+            !texto.includes('related') &&
+            !texto.includes('©') &&
+            !texto.includes('all rights reserved') &&
+            !texto.includes('terms of service') &&
+            !texto.includes('privacy policy')
+          );
+        
+        if (articleParrafos.length > 0) {
+          parrafos = articleParrafos;
+          break;
+        }
+      }
+    }
+
+    // Estrategia 2: Si no se encontró en contenedores específicos, buscar en todo el body
+    if (parrafos.length === 0) {
+      console.log(`🔍 Buscando en todo el body...`);
+      
+      parrafos = $('body p, body h2, body h3, body h4, body h5, body h6, body blockquote, body li')
+        .map((_, el) => {
+          const texto = $(el).text().trim();
+          return texto;
+        })
+        .get()
+        .filter(texto => 
+          texto.length > 30 && 
+          !texto.includes('cookie') && 
+          !texto.includes('privacy') && 
+          !texto.includes('advertisement') &&
+          !texto.includes('subscribe') &&
+          !texto.includes('newsletter') &&
+          !texto.includes('follow us') &&
+          !texto.includes('share this') &&
+          !texto.includes('comment') &&
+          !texto.includes('related') &&
+          !texto.includes('©') &&
+          !texto.includes('all rights reserved') &&
+          !texto.includes('terms of service') &&
+          !texto.includes('privacy policy')
+        );
+    }
+
+    // Estrategia 3: Si aún no hay contenido, buscar en cualquier párrafo largo
+    if (parrafos.length === 0) {
+      console.log(`🔍 Último recurso: buscando párrafos largos...`);
+      
+      parrafos = $('p')
+        .map((_, el) => {
+          const texto = $(el).text().trim();
+          return texto;
+        })
+        .get()
+        .filter(texto => texto.length > 50);
+    }
+
+    // Filtrar y limpiar párrafos
+    parrafos = parrafos
+      .filter(texto => {
+        // Eliminar texto que parece ser CSS, JavaScript o HTML
+        const hasCSS = /[{}\s]*[a-z-]+:\s*[^;]+;/.test(texto);
+        const hasJS = /function|var|let|const|console\.|document\.|window\./.test(texto);
+        const hasHTML = /<[^>]+>/.test(texto);
+        const hasURL = /https?:\/\/[^\s]+/.test(texto);
+        const hasEmail = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(texto);
+        
+        return !hasCSS && !hasJS && !hasHTML && !hasURL && !hasEmail;
+      })
+      .map(texto => {
+        // Limpiar texto
+        return texto
+          .replace(/\s+/g, ' ')  // Normalizar espacios
+          .replace(/[^\w\s.,!?;:()áéíóúñüÁÉÍÓÚÑÜ]/g, '')  // Solo texto y puntuación básica
+          .trim();
+      })
+      .filter(texto => texto.length > 20);  // Solo párrafos significativos
 
     if (parrafos.length === 0) {
       throw new Error('No se pudo extraer contenido útil de la página');
     }
 
-    const contenido = parrafos.join('\n').slice(0, 3000);
+    // Unir párrafos y limitar longitud
+    contenido = parrafos.join('\n\n').slice(0, 4000);
     
-   // console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
+    console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
+    console.log(`📝 Primeros 200 caracteres: "${contenido.substring(0, 200)}..."`);
     
     return {
-      titulo: titulo,
+      titulo: titulo || 'Sin título',
       contenido: contenido,
       url: url,
       sitio: siteName || (new URL(url)).hostname,
@@ -271,7 +428,6 @@ async function extraerContenidoNoticia(url) {
     };
   } catch (error) {
     console.error(`❌ Error extrayendo contenido: ${error.message}`);
-    // Propagar error semántico: el caller decidirá no persistir
     throw error;
   }
 }
@@ -279,20 +435,127 @@ async function extraerContenidoNoticia(url) {
 // Función para generar resumen usando análisis de texto local
 function generarResumenLocal(contenido) {
   try {
-   // console.log(`📝 Generando resumen local...`);
+    console.log(`📝 Generando resumen inteligente de toda la noticia...`);
     
-    // Dividir en oraciones
-    const oraciones = contenido.split(/[.!?]+/).filter(s => s.trim().length > 10);
-
-    // Seleccionar las primeras 3 oraciones más relevantes
-    const resumen = oraciones.slice(0, 3).join('. ').trim();
-
-   // console.log(`✅ Resumen generado: ${resumen.length} caracteres`);
+    // Limpiar contenido
+    const contenidoLimpio = contenido
+      .replace(/\s+/g, ' ')  // Normalizar espacios
+      .replace(/[^\w\s.,!?;:()áéíóúñüÁÉÍÓÚÑÜ]/g, '')  // Solo texto y puntuación
+      .trim();
     
-    return resumen + '.';
+    // Dividir en oraciones usando múltiples delimitadores
+    const oraciones = contenidoLimpio
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 20 && s.length < 1000);  // Oraciones de longitud razonable
+    
+    if (oraciones.length === 0) {
+      console.log(`⚠️ No se pudieron dividir oraciones, usando texto completo`);
+      return contenidoLimpio.substring(0, 500) + '...';
+    }
+    
+    console.log(`📊 Total de oraciones encontradas: ${oraciones.length}`);
+    
+    // Estrategia de resumen inteligente: seleccionar oraciones clave de diferentes partes
+    let resumen = '';
+    
+    if (oraciones.length <= 3) {
+      // Si hay pocas oraciones, usar todas
+      resumen = oraciones.join('. ');
+    } else {
+      // Estrategia inteligente: primera + media + última + algunas del medio
+      const oracionesSeleccionadas = [];
+      
+      // 1. Siempre incluir la primera oración (introducción/título)
+      oracionesSeleccionadas.push(oraciones[0]);
+      
+      // 2. Incluir oraciones del medio (contenido principal)
+      const medio = Math.floor(oraciones.length / 2);
+      const rangoMedio = Math.floor(oraciones.length * 0.3); // 30% del medio
+      
+      for (let i = Math.max(1, medio - rangoMedio); i < Math.min(oraciones.length - 1, medio + rangoMedio); i++) {
+        if (oraciones[i].length > 30) { // Solo oraciones significativas
+          oracionesSeleccionadas.push(oraciones[i]);
+        }
+      }
+      
+      // 3. Incluir la última oración (conclusión)
+      if (oraciones.length > 1) {
+        oracionesSeleccionadas.push(oraciones[oraciones.length - 1]);
+      }
+      
+      // 4. Si aún no alcanzamos 500 caracteres, agregar más oraciones del medio
+      let caracteresAcumulados = oracionesSeleccionadas.reduce((sum, oracion) => sum + oracion.length, 0);
+      
+      if (caracteresAcumulados < 500) {
+        // Agregar oraciones del medio que no estén ya incluidas
+        for (let i = 1; i < oraciones.length - 1; i++) {
+          if (caracteresAcumulados >= 500) break;
+          
+          const oracion = oraciones[i];
+          if (oracion.length > 30 && !oracionesSeleccionadas.includes(oracion)) {
+            oracionesSeleccionadas.push(oracion);
+            caracteresAcumulados += oracion.length;
+          }
+        }
+      }
+      
+      // 5. Ordenar las oraciones por su posición original para mantener coherencia
+      oracionesSeleccionadas.sort((a, b) => {
+        const indexA = oraciones.indexOf(a);
+        const indexB = oraciones.indexOf(b);
+        return indexA - indexB;
+      });
+      
+      resumen = oracionesSeleccionadas.join('. ');
+    }
+    
+    // Limpiar y formatear resumen
+    resumen = resumen
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Asegurar que termine con punto
+    if (!resumen.endsWith('.')) {
+      resumen += '.';
+    }
+    
+    // Garantizar mínimo de 500 caracteres
+    if (resumen.length < 500) {
+      console.log(`⚠️ Resumen muy corto (${resumen.length} chars), expandiendo...`);
+      
+      // Agregar más contenido del medio de la noticia
+      const oracionesRestantes = oraciones.filter(o => !resumen.includes(o));
+      for (const oracion of oracionesRestantes) {
+        if (resumen.length >= 500) break;
+        if (oracion.length > 30) {
+          resumen += ' ' + oracion;
+        }
+      }
+      
+      resumen = resumen.replace(/\s+/g, ' ').trim();
+      
+      if (!resumen.endsWith('.')) {
+        resumen += '.';
+      }
+    }
+    
+    // Limitar longitud máxima razonable
+    if (resumen.length > 800) {
+      resumen = resumen.substring(0, 800).trim();
+      if (!resumen.endsWith('.')) {
+        resumen += '...';
+      }
+    }
+    
+    console.log(`✅ Resumen inteligente generado: ${resumen.length} caracteres (mínimo 500)`);
+    console.log(`📝 Resumen: "${resumen}"`);
+    
+    return resumen;
   } catch (error) {
     console.error(`❌ Error generando resumen: ${error.message}`);
-    return 'No se pudo generar el resumen.';
+    // Fallback: usar los primeros 500+ caracteres del contenido
+    return contenido.substring(0, 500) + '...';
   }
 }
 
@@ -363,7 +626,7 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
 
     const tokensResumen = tokenize(resumenNoticia);
     const bigramResumen = bigrams(tokensResumen);
-    const trigramResumen = trigrams(tokensResumen);
+    const trigramResumen = trigrams(resumenNoticia);
     const tfResumen = buildTermFreq(tokensResumen);
     const tagsResumen = extractThematicTags(resumenNoticia);
     const entitiesResumen = extractNamedEntities(resumenNoticia);
@@ -426,24 +689,110 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
 
       return { ...newsletter, _score: score, _matchesTop: matchesTop, _tagOverlap: tagOverlap, _triJacc: triJacc, _bigJacc: bigJacc, _cos: cos, _entityOverlapCount: entityOverlapCount, _matchedTopArr: matchedTopArr, _matchedTagsArr: matchedTagsArr, _sameHost: sameHost };
     })
-    // Gating más flexible: baja umbrales para aumentar recall
+    // Gating más equilibrado: umbrales moderados para mayor precisión sin ser demasiado restrictivos
     .filter(nl => (
       nl._forced === true || (
-        (nl._sameHost ? nl._score >= 0.12 : nl._score >= 0.15) &&
+        (nl._sameHost ? nl._score >= 0.10 : nl._score >= 0.12) &&
         nl._matchesTop >= 2 &&
         (nl._bigJacc >= 0.05 || nl._triJacc >= 0.02) &&
-        nl._tagOverlap >= 0.15 &&
+        nl._tagOverlap >= 0.12 &&
         nl._entityOverlapCount >= 0
       )
     ))
     .sort((a, b) => b._score - a._score)
-    .slice(0, 3)
+    .slice(0, 3)  // LIMITAR A MÁXIMO 3 NEWSLETTERS
     .map(nl => ({ ...nl, puntuacion: Math.round(nl._score * 100) }));
 
     console.log(`✅ Se encontraron ${newslettersScored.length} newsletters relacionados (filtrados)`);
+    
+    // Logging detallado para debug
+    console.log(`\n🔍 DEBUG DETALLADO:`);
+    console.log(`📝 Resumen de la noticia: "${resumenNoticia.substring(0, 200)}..."`);
+    console.log(`🔑 Palabras clave principales: ${topKeywords.join(', ')}`);
+    console.log(`🌐 Host de la noticia: ${hostNoticia || 'N/A'}`);
+    
+    if (newslettersScored.length === 0) {
+      console.log(`\n❌ No se encontraron newsletters relacionados. Analizando por qué...`);
+      
+      // Mostrar algunos newsletters con sus scores para debug
+      const topNewsletters = newsletters.slice(0, 5);
+      console.log(`\n📊 Top 5 newsletters analizados:`);
+      
+      topNewsletters.forEach((nl, idx) => {
+        const textoDoc = `${nl.titulo || ''} ${nl.Resumen || ''}`;
+        const tokensDoc = tokenize(textoDoc);
+        const tfDoc = buildTermFreq(tokensDoc);
+        const cos = cosineSimilarity(tfResumen, tfDoc);
+        const bigramDoc = bigrams(tokensDoc);
+        const bigJacc = jaccard(new Set(bigramResumen), new Set(bigramDoc));
+        const trigramDoc = trigrams(tokensDoc);
+        const triJacc = jaccard(new Set(trigramResumen), new Set(trigramDoc));
+        const tagsDoc = extractThematicTags(textoDoc);
+        const tagOverlap = jaccard(tagsResumen, tagsDoc);
+        const entitiesDoc = extractNamedEntities(textoDoc);
+        const entityOverlapCount = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
+        
+        // Calcular score como en el filtro principal
+        const normResumen = normalizeText(resumenNoticia);
+        const normDoc = normalizeText(textoDoc);
+        const resumenAI = hasAnyTerm(normResumen, AI_TERMS);
+        const docAI = hasAnyTerm(normDoc, AI_TERMS);
+        const resumenWater = hasAnyTerm(normResumen, WATER_TERMS);
+        const docWater = hasAnyTerm(normDoc, WATER_TERMS);
+        const resumenEnergy = hasAnyTerm(normResumen, ENERGY_TERMS);
+        const docEnergy = hasAnyTerm(normDoc, ENERGY_TERMS);
+        const coAIWater = (resumenAI && docAI && resumenWater && docWater) ? 0.08 : 0;
+        const coAIEnergy = (resumenAI && docAI && resumenEnergy && docEnergy) ? 0.06 : 0;
+        
+        const sameHost = hostNoticia && (getHost(nl.link || nl.url || '') === hostNoticia);
+        const baseScore = 0.4 * cos + 0.3 * bigJacc + 0.2 * Math.min(triJacc * 2, 1) + 0.1 * Math.min(tagOverlap, 1);
+        const score = Math.min(baseScore + (sameHost ? 0.12 : 0) + coAIWater + coAIEnergy, 1);
+        
+        // Contar coincidencias de palabras clave
+        let matchesTop = 0;
+        for (const t of tokensDoc) {
+          if (topKeywordSet.has(t)) matchesTop++;
+        }
+        
+        console.log(`\n📧 Newsletter ${idx + 1}: "${nl.titulo}"`);
+        console.log(`   - Score final: ${score.toFixed(3)}`);
+        console.log(`   - Cosine: ${cos.toFixed(3)}, Bigram: ${bigJacc.toFixed(3)}, Trigram: ${triJacc.toFixed(3)}`);
+        console.log(`   - Tag overlap: ${tagOverlap.toFixed(3)}, Entities: ${entityOverlapCount}`);
+        console.log(`   - Palabras coincidentes: ${matchesTop}/${topKeywords.length}`);
+        console.log(`   - Mismo host: ${sameHost ? 'SÍ' : 'NO'}`);
+        console.log(`   - Co-ocurrencias IA+Agua: ${coAIWater > 0 ? 'SÍ' : 'NO'}, IA+Energía: ${coAIEnergy > 0 ? 'SÍ' : 'NO'}`);
+        
+        // Mostrar por qué no pasó el filtro
+        const passedHost = sameHost ? score >= 0.10 : score >= 0.12;
+        const passedMatches = matchesTop >= 2;
+        const passedNgrams = (bigJacc >= 0.05 || triJacc >= 0.02);
+        const passedTags = tagOverlap >= 0.12;
+        const passedEntities = entityOverlapCount >= 0;
+        
+        console.log(`   - ✅ Host: ${passedHost ? 'PASA' : 'FALLA'} (${sameHost ? '>=0.10' : '>=0.12'})`);
+        console.log(`   - ✅ Matches: ${passedMatches ? 'PASA' : 'FALLA'} (>=2, tiene ${matchesTop})`);
+        console.log(`   - ✅ N-gramas: ${passedNgrams ? 'PASA' : 'FALLA'} (big>=0.05 o tri>=0.02)`);
+        console.log(`   - ✅ Tags: ${passedTags ? 'PASA' : 'FALLA'} (>=0.12, tiene ${tagOverlap.toFixed(3)})`);
+        console.log(`   - ✅ Entities: ${passedEntities ? 'PASA' : 'FALLA'} (>=0, tiene ${entityOverlapCount})`);
+        
+        if (!passedHost || !passedMatches || !passedNgrams || !passedTags || !passedEntities) {
+          console.log(`   ❌ NO PASA EL FILTRO`);
+        } else {
+          console.log(`   ✅ PASA EL FILTRO (pero no está en el resultado)`);
+        }
+      });
+    } else {
+      console.log(`\n✅ Newsletters relacionados encontrados:`);
+      newslettersScored.forEach((nl, idx) => {
+        console.log(`   ${idx + 1}. "${nl.titulo}" - Score: ${nl._score.toFixed(3)}`);
+        console.log(`      - Palabras coincidentes: ${nl._matchesTop}/${topKeywords.length}`);
+        console.log(`      - Mismo host: ${nl._sameHost ? 'SÍ' : 'NO'}`);
+      });
+    }
+
     if (newslettersScored.length > 0) return newslettersScored;
 
-    // Fallback menos estricto para no perder candidatos
+    // Fallback equilibrado para no perder candidatos válidos
     const fallback = newsletters.map((newsletter) => {
       const textoDoc = `${newsletter.titulo || ''} ${newsletter.Resumen || ''}`;
       const tokensDoc = tokenize(textoDoc);
@@ -455,12 +804,25 @@ function compararConNewslettersLocal(resumenNoticia, newsletters, urlNoticia = '
       const entitiesOverlap = new Set([...entitiesResumen].filter(e => entitiesDoc.has(e))).size;
       return { ...newsletter, _tri: tri, _big: big, _kw: kw, _ent: entitiesOverlap };
     })
-    .filter(nl => (nl._tri >= 0.015 || nl._big >= 0.08) && nl._kw >= 2)
+    .filter(nl => (nl._tri >= 0.01 || nl._big >= 0.05) && nl._kw >= 2)
     .sort((a, b) => (b._tri + b._big) - (a._tri + a._big))
-    .slice(0, 2)
+    .slice(0, 2)  // LIMITAR FALLBACK A MÁXIMO 2 NEWSLETTERS
     .map(nl => ({ ...nl, puntuacion: Math.round((nl._tri + nl._big) * 100) }));
 
-    console.log(`ℹ️ Fallback estricto: ${fallback.length} newsletters`);
+    console.log(`ℹ️ Fallback equilibrado: ${fallback.length} newsletters`);
+    
+    // Logging detallado del fallback
+    if (fallback.length > 0) {
+      console.log(`\n🔄 FALLBACK - Newsletters encontrados:`);
+      fallback.forEach((nl, idx) => {
+        console.log(`   ${idx + 1}. "${nl.titulo}"`);
+        console.log(`      - Trigram: ${nl._tri.toFixed(3)}, Bigram: ${nl._big.toFixed(3)}`);
+        console.log(`      - Palabras clave: ${nl._kw}/${topKeywords.length}`);
+        console.log(`      - Entidades: ${nl._ent}`);
+      });
+    } else {
+      console.log(`\n❌ FALLBACK - No se encontraron newsletters en el fallback tampoco`);
+    }
     return fallback;
   } catch (error) {
     console.error(`❌ Error comparando newsletters: ${error.message}`);
@@ -657,18 +1019,44 @@ export async function analizarNoticiaEstructurada(input) {
 
 // Procesar un conjunto de URLs: analizar y persistir en Trends si corresponde
 export async function procesarUrlsYPersistir(items = []) {
-  if (!Array.isArray(items) || items.length === 0) return [];
+  console.log(`🚀 INICIANDO PROCESAMIENTO DE URLS:`);
+  console.log(`📊 Total de items recibidos: ${items.length}`);
+  console.log(`📋 Items:`, items);
+  
+  if (!Array.isArray(items) || items.length === 0) {
+    console.log(`❌ No hay items para procesar`);
+    return [];
+  }
 
   const trendsSvc = new TrendsService();
   const resultados = [];
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    console.log(`\n🔄 PROCESANDO ITEM ${i + 1}/${items.length}:`, item);
+    
     const url = (typeof item === 'string') ? item : (item?.url || '');
     const tituloTrend = (typeof item === 'object') ? (item?.title || item?.titulo || 'Sin título') : 'Sin título';
-    if (!url) continue;
+    
+    console.log(`🔗 URL extraída: ${url}`);
+    console.log(`📝 Título extraído: ${tituloTrend}`);
+    
+    if (!url) {
+      console.log(`❌ No se pudo extraer URL del item, saltando...`);
+      continue;
+    }
 
     try {
+      console.log(`🔍 Analizando noticia: ${url}`);
       const resultado = await analizarNoticiaEstructurada(url);
+      
+      console.log(`✅ Análisis completado para: ${url}`);
+      console.log(`📊 Resultado del análisis:`, {
+        esClimatech: resultado?.esClimatech,
+        titulo: resultado?.titulo,
+        resumen: resultado?.resumen ? `${resultado.resumen.substring(0, 100)}...` : 'Sin resumen',
+        newslettersRelacionados: resultado?.newslettersRelacionados?.length || 0
+      });
       
       // Inicializar el resultado con información básica
       const resultadoItem = { 
@@ -679,13 +1067,17 @@ export async function procesarUrlsYPersistir(items = []) {
       };
       
       if (!resultado?.esClimatech) {
+        console.log(`❌ Noticia NO es Climatech, saltando...`);
         resultados.push(resultadoItem);
         continue;
       }
 
+      console.log(`✅ Noticia SÍ es Climatech, procesando...`);
       const relacionados = Array.isArray(resultado.newslettersRelacionados)
         ? resultado.newslettersRelacionados
         : [];
+      
+      console.log(`📧 Newsletters relacionados encontrados: ${relacionados.length}`);
       
       // Crear trends para TODAS las noticias climatech, tengan o no newsletters relacionados
       let trendsInsertados = 0;
@@ -789,11 +1181,28 @@ export async function procesarUrlsYPersistir(items = []) {
       }
       
       resultados.push(resultadoItem);
+      
+      console.log(`✅ Item ${i + 1} procesado completamente. Trends creados: ${trendsInsertados}`);
+      
     } catch (e) {
-      console.error(`Error procesando ${url}:`, e?.message || e);
-      // continuar con el siguiente
+      console.error(`❌ Error procesando ${url}:`, e?.message || e);
+      console.error(`🔍 Stack trace completo:`, e?.stack || 'No disponible');
+      // continuar con el siguiente sin romper el flujo
+      resultados.push({
+        url,
+        resultado: null,
+        insertado: false,
+        trendsCreados: 0,
+        error: e?.message || String(e)
+      });
     }
   }
+
+  console.log(`\n🎯 PROCESAMIENTO COMPLETADO:`);
+  console.log(`📊 Total de items procesados: ${items.length}`);
+  console.log(`✅ Items exitosos: ${resultados.filter(r => r.insertado).length}`);
+  console.log(`❌ Items fallidos: ${resultados.filter(r => !r.insertado).length}`);
+  console.log(`📈 Total de trends creados: ${resultados.reduce((sum, r) => sum + r.trendsCreados, 0)}`);
 
   return resultados;
 }
@@ -869,5 +1278,3 @@ const isDirectRun = (() => {
 if (isDirectRun) {
   empezarChat();
 }
-
-

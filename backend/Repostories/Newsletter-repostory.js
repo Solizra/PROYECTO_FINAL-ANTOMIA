@@ -6,7 +6,7 @@ export default class NewsletterRepository {
   getAllAsync = async ({ id, link, Resumen, titulo, page, limit }) => {
     let newsletters = [];
     const client = new Client(DBConfig);
-    const offset = (page - 1) * limit;
+    const offset = (page - 1) * (limit || 1);
 
     try {
       await client.connect();
@@ -34,8 +34,13 @@ export default class NewsletterRepository {
         params.push(`%${titulo}%`);
       }
 
-      sql += ` ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      params.push(limit, offset);
+      sql += ` ORDER BY id DESC`;
+      
+      // CAMBIADO: Solo aplicar LIMIT y OFFSET si limit no es null
+      if (limit !== null) {
+        sql += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(limit, offset);
+      }
 
       const result = await client.query(sql, params);
       newsletters = result.rows;
