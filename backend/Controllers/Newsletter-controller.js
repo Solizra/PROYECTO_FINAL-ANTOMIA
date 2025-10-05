@@ -36,6 +36,7 @@ router.post('/analizar', async (req, res) => {
     const inserts = [];
     const tieneLinkValido = resultado.url && /^https?:\/\//i.test(resultado.url);
     if (resultado.esClimatech && tieneLinkValido && Array.isArray(resultado.newslettersRelacionados) && resultado.newslettersRelacionados.length > 0) {
+      console.log(`📦 Preparando inserciones de relaciones (${resultado.newslettersRelacionados.length})`);
       for (const nl of resultado.newslettersRelacionados) {
         const payload = {
           id_newsletter: nl.id || null,
@@ -46,8 +47,13 @@ router.post('/analizar', async (req, res) => {
           Relacionado: true,
           Analisis_relacion: nl.analisisRelacion || '',
         };
+        console.log('📝 Insert payload (relacionado=true):', payload);
         const created = await trendsSvc.createAsync(payload);
-        inserts.push({ ...payload, id: created?.id, newsletterLink: nl.link || '' });
+        if (!created?.duplicated) {
+          inserts.push({ ...payload, id: created?.id, newsletterLink: nl.link || '' });
+        } else {
+          console.log('⛔ Relación duplicada evitada (controller):', payload.Link_del_Trend, payload.id_newsletter, payload.Nombre_Newsletter_Relacionado);
+        }
       }
     } else if (resultado.esClimatech && tieneLinkValido) {
       const payload = {
@@ -57,8 +63,9 @@ router.post('/analizar', async (req, res) => {
         Nombre_Newsletter_Relacionado: '',
         Fecha_Relación: new Date().toISOString(),
         Relacionado: false,
-        Analisis_relacion: 'Sin newsletter relacionado, pero clasificado como Climatech',
+        Analisis_relacion: resultado.analisisSinRelacion || 'Sin newsletter relacionado, pero clasificado como Climatech',
       };
+      console.log('📝 Insert payload (relacionado=false):', payload);
       const created = await trendsSvc.createAsync(payload);
       inserts.push({ ...payload, id: created?.id, newsletterLink: '' });
     }

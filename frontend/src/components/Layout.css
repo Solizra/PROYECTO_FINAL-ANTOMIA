@@ -71,8 +71,10 @@
     padding: 4px;
     margin-top: 10px;
     border-radius: 4px;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
   }
   
   .sidebar.collapsed .toggle-sidebar-btn {
@@ -81,8 +83,11 @@
   }
   
   .toggle-sidebar-btn:hover {
-    background-color: #76f6ff20;
-    color: #4cafef;
+    background: linear-gradient(135deg, #76f6ff 0%, #4a9da3 100%);
+    color: #000;
+    transform: scale(1.15) rotate(5deg);
+    box-shadow: 0 8px 25px rgba(118, 246, 255, 0.4);
+    border-radius: 6px;
   }
   
   .sidebar nav {
@@ -120,7 +125,9 @@
     padding: 8px 12px;
     display: block;
     border-radius: 6px;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
   }
   
   .sidebar nav ul li.active a {
@@ -129,8 +136,13 @@
   }
   
   .sidebar nav ul li a:hover {
-    background-color: #76f6ff20;
-    color: #76f6ff;
+    background: linear-gradient(135deg, #76f6ff 0%, #4a9da3 100%);
+    color: #000;
+    transform: translateX(8px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(118, 246, 255, 0.4);
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
   }
   
   /* ===== BOTÓN DE LOGOUT ===== */
@@ -142,9 +154,11 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     margin-top: auto;
     white-space: nowrap;
+    position: relative;
+    overflow: hidden;
   }
   
   .logout-btn.visible {
@@ -160,14 +174,18 @@
   }
   
   .logout-btn:hover {
-    background: #06767e;
-    color: white;
+    background: linear-gradient(135deg, #76f6ff 0%, #4a9da3 100%);
+    color: #000;
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(118, 246, 255, 0.4);
+    border-color: #76f6ff;
+    font-weight: 600;
   }
   
   /* ===== CONTENIDO PRINCIPAL ===== */
   .content {
     flex: 1;
-    background-color: #f5f6fa;
+    background-color: #000000;
     overflow-y: auto;
     transition: all 0.3s ease;
     scrollbar-width: none; /* Firefox */

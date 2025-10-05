@@ -70,7 +70,10 @@ function Home() {
     const cargarUltimasNoticias = async () => {
       try {
         const res = await fetch('http://localhost:3000/api/news/latest');
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.log('⚠️ Backend no disponible para cargar noticias');
+          return;
+        }
         const urls = await res.json();
         if (!Array.isArray(urls) || urls.length === 0) return;
 
@@ -113,7 +116,7 @@ function Home() {
                     relacionado: !!ins.Relacionado,
                     newsletterLink: ins.newsletterLink || '',
                     analisisRelacion: ins.Analisis_relacion || 'Sin análisis disponible',
-                    resumenFama: data.resumenFama || '',
+                    resumenFama: data.resumenBreve || data.resumenFama || '',
                     autor: data.autor || '',
                   }))
                 : (baseFilas.length > 0 ? baseFilas : []);
@@ -129,11 +132,33 @@ function Home() {
           .filter(Boolean)
           .flat();
         if (compactas.length) {
-          setTrends((prev) => sortByDateDesc([...prev, ...compactas]));
+          setTrends((prev) => {
+            const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+            const nuevosUnicos = compactas.filter(f => {
+              const key = `${f.trendLink}|${f.newsletterId ?? 'null'}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            // Evitar duplicados también por id si backend reusa id
+            const byId = new Set(prev.map(p => String(p.id)));
+            const dedupPorId = nuevosUnicos.filter(f => {
+              const fid = String(f.id);
+              if (byId.has(fid)) return false;
+              byId.add(fid);
+              return true;
+            });
+            return sortByDateDesc([...prev, ...dedupPorId]);
+          });
         }
-      } catch (e) {
-        // silencioso para no afectar UI inicial
-      }
+              } catch (e) {
+          // Manejar errores de conexión silenciosamente
+          if (e.name === 'TypeError' && e.message.includes('fetch')) {
+            console.log('⚠️ Backend no disponible - Error de conexión');
+          } else {
+            console.log('⚠️ Error cargando noticias:', e.message);
+          }
+        }
     };
 
     // Solo si aún no hay tendencias cargadas en memoria
@@ -176,9 +201,10 @@ function Home() {
                 // Agregar nuevo trend a la lista
                 const newTrend = data.data;
                 setTrends(prev => {
-                  console.log('📊 Trends anteriores:', prev.length);
+                  const key = `${newTrend.trendLink}|${newTrend.newsletterId ?? 'null'}`;
+                  const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+                  if (seen.has(key)) return prev; // evitar duplicado
                   const updated = [newTrend, ...prev];
-                  console.log('📊 Trends actualizados:', updated.length);
                   return sortByDateDesc(updated);
                 });
                 console.log('✅ Nuevo trend agregado en tiempo real:', newTrend.trendTitulo);
@@ -238,7 +264,14 @@ function Home() {
                     .map(e => e.data);
                   if (recentTrends.length > 0) {
                     setTrends(prev => {
-                      const combined = [...recentTrends, ...prev];
+                      const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+                      const uniqueRecent = recentTrends.filter(t => {
+                        const k = `${t.trendLink}|${t.newsletterId ?? 'null'}`;
+                        if (seen.has(k)) return false;
+                        seen.add(k);
+                        return true;
+                      });
+                      const combined = [...uniqueRecent, ...prev];
                       return sortByDateDesc(combined);
                     });
                   }
@@ -312,7 +345,10 @@ function Home() {
     try {
       console.log('🔄 Recargando trends desde la base de datos...');
       const res = await fetch('http://localhost:3000/api/Trends');
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.log('⚠️ Backend no disponible para cargar trends');
+        return;
+      }
       const data = await res.json();
       if (!Array.isArray(data)) return;
       
@@ -347,9 +383,13 @@ function Home() {
        } else {
          console.log('ℹ️ No hay trends en la base de datos');
        }
-    } catch (error) {
-      console.error('❌ Error cargando trends desde BDD:', error);
-    }
+         } catch (error) {
+       if (error.name === 'TypeError' && error.message.includes('fetch')) {
+         console.log('⚠️ Backend no disponible - Error de conexión');
+       } else {
+         console.error('❌ Error cargando trends desde BDD:', error);
+       }
+     }
   };
 
   // Fallback: refresco automático cada 60s desde la BDD (solo si no hay SSE)
@@ -358,7 +398,10 @@ function Home() {
     const cargarTrends = async () => {
       try {
         const res = await fetch('http://localhost:3000/api/Trends');
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.log('⚠️ Fallback: Backend no disponible');
+          return;
+        }
         const data = await res.json();
         if (!Array.isArray(data)) return;
         const mapped = data.map((t, idx) => ({
@@ -377,12 +420,41 @@ function Home() {
         if (isMounted && mapped.length) {
           setTrends(mapped);
         }
-      } catch {}
+      } catch (error) {
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          console.log('⚠️ Fallback: Backend no disponible - Error de conexión');
+        }
+      }
     };
 
     const intervalId = setInterval(cargarTrends, 60 * 1000);
     return () => { isMounted = false; clearInterval(intervalId); };
   }, []);
+
+  const handleArchive = (trend) => {
+    console.log('📁 Archivando trend:', trend);
+    
+    // Obtener archivados existentes
+    const archivados = JSON.parse(localStorage.getItem('archivados') || '[]');
+    
+    // Agregar el nuevo trend archivado
+    const trendArchivado = {
+      ...trend,
+      tipo: 'trend', // Agregar explícitamente el tipo
+      fechaArchivado: new Date().toISOString(),
+      estado: 'archivado'
+    };
+    
+    archivados.push(trendArchivado);
+    localStorage.setItem('archivados', JSON.stringify(archivados));
+    
+    // Remover de la tabla de trends
+    setTrends(prev => prev.filter(t => t.id !== trend.id));
+    
+    // Mostrar mensaje de éxito
+    setSuccess('✅ Trend archivado correctamente');
+    setTimeout(() => setSuccess(''), 3000);
+  };
 
   const handleDelete = async (id) => {
     console.log('🗑️ Intentando eliminar trend con ID:', id);
@@ -461,8 +533,20 @@ function Home() {
           }))
         : (baseFilas.length > 0 ? baseFilas : []);
 
-      // Agregar a la tabla local
-      setTrends((prev) => sortByDateDesc([...prev, ...filas]));
+      // Agregar a la tabla local evitando duplicados por clave y por id
+      setTrends((prev) => {
+        const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
+        const byId = new Set(prev.map(p => String(p.id)));
+        const nuevosUnicos = filas.filter(f => {
+          const key = `${f.trendLink}|${f.newsletterId ?? 'null'}`;
+          const fid = String(f.id);
+          if (seen.has(key) || byId.has(fid)) return false;
+          seen.add(key);
+          byId.add(fid);
+          return true;
+        });
+        return sortByDateDesc([...prev, ...nuevosUnicos]);
+      });
       
       // Mostrar mensaje de éxito
       if (data.inserts && data.inserts.length > 0) {
@@ -514,13 +598,26 @@ function Home() {
       <main className="main-content">
         <div className="header-section">
           <h1 className="main-title">Últimos trends reconocidos</h1>
-          <div className="connection-status">
-            <span className={`status-indicator ${sseConnected ? 'connected' : 'disconnected'}`}>
-              {sseConnected ? '🟢' : '🔴'}
-            </span>
-            <span className="status-text">
-              {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
-            </span>
+                     <div className="connection-status">
+             <span className={`status-indicator ${sseConnected ? 'connected' : 'disconnected'}`}>
+               {sseConnected ? '🟢' : '🔴'}
+             </span>
+             <span className="status-text">
+               {sseConnected ? 'Actualización en tiempo real' : 'Modo offline'}
+             </span>
+             {!sseConnected && (
+               <span className="backend-status" style={{ 
+                 marginLeft: '10px', 
+                 padding: '2px 8px', 
+                 background: '#ff6b6b', 
+                 color: 'white', 
+                 borderRadius: '12px', 
+                 fontSize: '12px',
+                 fontWeight: 'bold'
+               }}>
+                 ⚠️ Backend Offline
+               </span>
+             )}
             <button 
               onClick={async () => {
                 try {
@@ -565,13 +662,12 @@ function Home() {
         <table className="trends-table">
           <thead>
             <tr>
-              <th>
-                <input type="checkbox" />
-              </th>
+              <th>Info</th>
               <th>Título del Trend</th>
               <th>Link del Trend</th>
               <th>Nombre Newsletter Relacionado</th>
               <th>Fecha Relación</th>
+              <th>Archivar</th>
               <th>Eliminar</th>
             </tr>
           </thead>
@@ -596,6 +692,16 @@ function Home() {
                 </td>
                 <td>{trend.newsletterTitulo || '—'}</td>
                 <td>{trend.fechaRelacion ? new Date(trend.fechaRelacion).toLocaleString() : '—'}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="archive-btn"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleArchive(trend); }}
+                    title="Archivar trend"
+                  >
+                    ✅
+                  </button>
+                </td>
                 <td>
                   <button
                     type="button"
