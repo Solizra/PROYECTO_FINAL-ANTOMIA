@@ -29,7 +29,8 @@ export default class NewsletterRepository {
         params.push(`%${link}%`);
       }
       if (Resumen) {
-        sql += ` AND resumen ILIKE $${params.length + 1}`;
+        // Columna tiene comillas mayúsculas en el esquema: "Resumen"
+        sql += ` AND "Resumen" ILIKE $${params.length + 1}`;
         params.push(`%${Resumen}%`);
       }
       if (titulo) {

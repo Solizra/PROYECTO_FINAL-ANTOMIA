@@ -3,7 +3,7 @@ import './Fuentes.css';
 
 function Fuentes() {
   const [fuentes, setFuentes] = useState([]);
-  const [dominio, setDominio] = useState('');
+  const [fuente, setFuente] = useState('');
   const [categoria, setCategoria] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -14,9 +14,9 @@ function Fuentes() {
       const res = await fetch('http://localhost:3000/api/Fuentes');
       const data = await res.json();
       if (!res.ok || !Array.isArray(data)) throw new Error('No se pudieron cargar las fuentes');
-      // Orden: activas primero, luego alfabético por dominio
+      // Orden: activas primero, luego alfabético por fuente
       const ordered = [...data].sort((a, b) => {
-        if (a.activo === b.activo) return a.dominio.localeCompare(b.dominio);
+        if (a.activo === b.activo) return a.fuente.localeCompare(b.fuente);
         return a.activo ? -1 : 1;
       });
       setFuentes(ordered);
@@ -29,20 +29,20 @@ function Fuentes() {
 
   const agregarFuente = async () => {
     setError(''); setSuccess('');
-    const d = dominio.trim().toLowerCase();
+    const d = fuente.trim().toLowerCase();
     const c = categoria.trim();
-    if (!d) { setError('Ingresá un dominio'); return; }
+    if (!d) { setError('Ingresá una fuente (fuente)'); return; }
     setLoading(true);
     try {
       const res = await fetch('http://localhost:3000/api/Fuentes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dominio: d, categoria: c })
+        body: JSON.stringify({ fuente: d, categoria: c })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && data.error) || 'No se pudo agregar la fuente');
-      setDominio(''); setCategoria('');
-      setSuccess('✅ Fuente agregada');
+      setFuente(''); setCategoria('');
+      setSuccess(data?.message || '✅ Fuente agregada');
       await cargarFuentes();
     } catch (e) {
       setError(e.message || 'Error agregando fuente');
@@ -54,7 +54,7 @@ function Fuentes() {
   const eliminarFuente = async (d) => {
     setError(''); setSuccess('');
     try {
-      const res = await fetch(`http://localhost:3000/api/Fuentes?dominio=${encodeURIComponent(d)}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:3000/api/Fuentes?fuente=${encodeURIComponent(d)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && data.error) || 'No se pudo eliminar');
       setSuccess('🗑️ Fuente desactivada');
@@ -74,9 +74,9 @@ function Fuentes() {
         <div className="fuentes-actions">
           <input
             type="text"
-            placeholder="Dominio (ej: bbc.com)"
-            value={dominio}
-            onChange={(e) => { setDominio(e.target.value); setError(''); setSuccess(''); }}
+            placeholder="fuente (ej: bbc.com)"
+            value={fuente}
+            onChange={(e) => {setFuente(e.target.value); setError(''); setSuccess(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter') agregarFuente(); }}
             disabled={loading}
           />
@@ -97,7 +97,7 @@ function Fuentes() {
         <table className="fuentes-table">
           <thead>
             <tr>
-              <th>Dominio</th>
+              <th>Fuente</th>
               <th>Categoría</th>
               <th>Estado</th>
               <th>Acciones</th>
@@ -105,8 +105,8 @@ function Fuentes() {
           </thead>
           <tbody>
             {fuentes.map((f) => (
-              <tr key={f.dominio}>
-                <td>{f.dominio}</td>
+              <tr key={f.fuente}>
+                <td>{f.fuente}</td>
                 <td>{f.categoria || '—'}</td>
                 <td>
                   <span className={`badge ${f.activo ? 'activo' : 'inactivo'}`}>
@@ -114,7 +114,7 @@ function Fuentes() {
                   </span>
                 </td>
                 <td>
-                  <button className="delete-btn" onClick={() => eliminarFuente(f.dominio)} title="Desactivar">
+                  <button className="delete-btn" onClick={() => eliminarFuente(f.fuente)} title="Desactivar">
                     🗙
                   </button>
                 </td>
