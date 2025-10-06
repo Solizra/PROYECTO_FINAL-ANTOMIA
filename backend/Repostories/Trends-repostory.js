@@ -7,23 +7,56 @@ export default class TrendsRepository {
     const client = new Client(DBConfig);
     try {
       await client.connect();
-      // Completar nombre de newsletter si viene vacío pero hay id_newsletter
-      if ((!record.Nombre_Newsletter_Relacionado || record.Nombre_Newsletter_Relacionado.trim() === '') && record.id_newsletter != null) {
+      // Normalización y coerción de payload para evitar valores incorrectos en BDD
+      const coerceBoolean = (v) => {
+        if (typeof v === 'boolean') return v;
+        if (typeof v === 'number') return v !== 0;
+        const s = String(v || '').trim().toLowerCase();
+        return s === 'true' || s === '1' || s === 'si' || s === 'sí' || s === 'yes';
+      };
+      const coerceIntOrNull = (v) => {
+        const n = Number(v);
+        return Number.isInteger(n) ? n : null;
+      };
+      const safeText = (v) => String(v ?? '').trim();
+      const safeDateISO = (v) => {
         try {
-          const nlRes = await client.query('SELECT "titulo" FROM "Newsletter" WHERE "id" = $1 LIMIT 1', [record.id_newsletter]);
+          const d = v ? new Date(v) : new Date();
+          const t = d.getTime();
+          if (Number.isFinite(t)) return new Date(t).toISOString();
+          return new Date().toISOString();
+        } catch {
+          return new Date().toISOString();
+        }
+      };
+
+      // Construir un registro saneado para uso interno
+      const clean = {
+        id_newsletter: coerceIntOrNull(record.id_newsletter),
+        Título_del_Trend: safeText(record.Título_del_Trend),
+        Link_del_Trend: safeText(record.Link_del_Trend),
+        Nombre_Newsletter_Relacionado: safeText(record.Nombre_Newsletter_Relacionado),
+        Fecha_Relación: safeDateISO(record.Fecha_Relación),
+        Relacionado: coerceBoolean(record.Relacionado),
+        Analisis_relacion: safeText(record.Analisis_relacion)
+      };
+      // Completar nombre de newsletter si viene vacío pero hay id_newsletter
+      if ((!clean.Nombre_Newsletter_Relacionado || clean.Nombre_Newsletter_Relacionado.trim() === '') && clean.id_newsletter != null) {
+        try {
+          const nlRes = await client.query('SELECT "titulo" FROM "Newsletter" WHERE "id" = $1 LIMIT 1', [clean.id_newsletter]);
           const t = nlRes.rows?.[0]?.titulo;
-          if (t) record.Nombre_Newsletter_Relacionado = t;
+          if (t) clean.Nombre_Newsletter_Relacionado = t;
         } catch (e) {
           console.error('Error obteniendo titulo de Newsletter para completar nombre relacionado:', e);
         }
       }
-      // Chequeo de duplicados: misma noticia (Link_del_Trend) y mismo newsletter (id_newsletter) y mismo flag Relacionado
+      // Chequeo de duplicados: misma noticia (Link_del_Trend) y mismo newsletter (id_newsletter o nombre relacionado)
+      // Nota: NO consideramos el flag "Relacionado" para evitar duplicados con distinto valor del flag
       try {
         const checkSql = `
           SELECT "id"
           FROM "Trends"
-          WHERE "Link_del_Trend" = $1::text
-            AND ("Relacionado" = $4::boolean)
+          WHERE lower("Link_del_Trend") = lower($1::text)
             AND (
               ($2::int IS NOT NULL AND "id_newsletter" = $2::int)
               OR (
@@ -36,10 +69,9 @@ export default class TrendsRepository {
           LIMIT 1;
         `;
         const checkParams = [
-          (record.Link_del_Trend ?? '').trim(),
-          record.id_newsletter ?? null,
-          (record.Nombre_Newsletter_Relacionado ?? '').trim(),
-          record.Relacionado === true
+          clean.Link_del_Trend,
+          clean.id_newsletter,
+          clean.Nombre_Newsletter_Relacionado
         ];
         const existing = await client.query(checkSql, checkParams);
         if (existing.rows.length > 0) {
@@ -58,19 +90,20 @@ export default class TrendsRepository {
           "Relacionado",
           "Analisis_relacion"
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING "id";
+        RETURNING "id", "id_newsletter", "Título_del_Trend", "Link_del_Trend", "Nombre_Newsletter_Relacionado", "Fecha_Relación", "Relacionado", "Analisis_relacion";
       `;
       const params = [
-        record.id_newsletter ?? null,
-        record.Título_del_Trend ?? '',
-        record.Link_del_Trend ?? '',
-        record.Nombre_Newsletter_Relacionado ?? '',
-        record.Fecha_Relación ?? new Date().toISOString(),
-        record.Relacionado === true,
-        record.Analisis_relacion ?? ''
+        clean.id_newsletter,
+        clean.Título_del_Trend,
+        clean.Link_del_Trend,
+        clean.Nombre_Newsletter_Relacionado,
+        clean.Fecha_Relación,
+        clean.Relacionado,
+        clean.Analisis_relacion
       ];
       const result = await client.query(sql, params);
-      return { id: result.rows[0]?.id };
+      // Devolver el registro completo insertado (útil para front y validación)
+      return result.rows[0] || { id: null };
     } catch (err) {
       console.error('Error insertando en Trends:', err);
       throw err;

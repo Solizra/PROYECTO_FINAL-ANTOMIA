@@ -48,9 +48,20 @@ router.post('/analizar', async (req, res) => {
           Analisis_relacion: nl.analisisRelacion || '',
         };
         console.log('📝 Insert payload (relacionado=true):', payload);
-        const created = await trendsSvc.createAsync(payload);
+        const created = await trendsSvc.createAsync(payload); // devuelve fila completa o { duplicated: true }
         if (!created?.duplicated) {
-          inserts.push({ ...payload, id: created?.id, newsletterLink: nl.link || '' });
+          // Preferir valores devueltos por BDD (normalizados) si existen
+          inserts.push({
+            id: created?.id,
+            id_newsletter: created?.id_newsletter ?? payload.id_newsletter,
+            Título_del_Trend: created?.['Título_del_Trend'] ?? payload.Título_del_Trend,
+            Link_del_Trend: created?.['Link_del_Trend'] ?? payload.Link_del_Trend,
+            Nombre_Newsletter_Relacionado: created?.['Nombre_Newsletter_Relacionado'] ?? payload.Nombre_Newsletter_Relacionado,
+            Fecha_Relación: created?.['Fecha_Relación'] ?? payload.Fecha_Relación,
+            Relacionado: created?.['Relacionado'] ?? payload.Relacionado,
+            Analisis_relacion: created?.['Analisis_relacion'] ?? payload.Analisis_relacion,
+            newsletterLink: nl.link || ''
+          });
         } else {
           console.log('⛔ Relación duplicada evitada (controller):', payload.Link_del_Trend, payload.id_newsletter, payload.Nombre_Newsletter_Relacionado);
         }
@@ -63,11 +74,21 @@ router.post('/analizar', async (req, res) => {
         Nombre_Newsletter_Relacionado: '',
         Fecha_Relación: new Date().toISOString(),
         Relacionado: false,
-        Analisis_relacion: resultado.analisisSinRelacion || 'Sin newsletter relacionado, pero clasificado como Climatech',
+        Analisis_relacion: (resultado.motivoSinRelacion || '').trim() || 'Sin newsletter relacionado, pero clasificado como Climatech',
       };
       console.log('📝 Insert payload (relacionado=false):', payload);
-      const created = await trendsSvc.createAsync(payload);
-      inserts.push({ ...payload, id: created?.id, newsletterLink: '' });
+      const created = await trendsSvc.createAsync(payload); // devuelve fila completa
+      inserts.push({
+        id: created?.id,
+        id_newsletter: created?.id_newsletter ?? payload.id_newsletter,
+        Título_del_Trend: created?.['Título_del_Trend'] ?? payload.Título_del_Trend,
+        Link_del_Trend: created?.['Link_del_Trend'] ?? payload.Link_del_Trend,
+        Nombre_Newsletter_Relacionado: created?.['Nombre_Newsletter_Relacionado'] ?? payload.Nombre_Newsletter_Relacionado,
+        Fecha_Relación: created?.['Fecha_Relación'] ?? payload.Fecha_Relación,
+        Relacionado: created?.['Relacionado'] ?? payload.Relacionado,
+        Analisis_relacion: created?.['Analisis_relacion'] ?? payload.Analisis_relacion,
+        newsletterLink: ''
+      });
     }
 
     res.status(200).json({

@@ -24,7 +24,7 @@ export default class FuentesRepository {
       return (result.rows || [])
         .map(r => ({
           fuente: String(r.fuente || '').trim(),
-          Categoria: String(r.Categoria || '').trim(),
+          categoria: String(r.Categoria || '').trim(),
           activo: true,
           id: r.id
         }))

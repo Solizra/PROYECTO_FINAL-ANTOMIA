@@ -330,53 +330,93 @@ async function extraerContenidoNoticia(url) {
     let contenido = '';
     let parrafos = [];
 
+    // Helper: detectar si un elemento está dentro de bloques de relacionados/recomendados
+    function estaEnBloqueRelacionado(el) {
+      try {
+        const parents = $(el).parents().toArray();
+        for (const p of parents) {
+          const attrs = $(p).attr() || {};
+          const joined = [attrs.class, attrs.id, Object.values(attrs).join(' ')].join(' ').toLowerCase();
+          if (/related|recomend|recommend|sidebar|more|te\s+puede\s+interesar|mir[aá]\s+tambi[ée]n|seg[uú]i\s+leyendo/.test(joined)) {
+            return true;
+          }
+        }
+      } catch {}
+      return false;
+    }
+
+    // Helper: filtrar texto no deseado (cta, políticas, copys de módulos)
+    function textoNoDeseado(texto) {
+      const t = (texto || '').toLowerCase();
+      if (t.length <= 30) return false; // permitir títulos internos razonables
+      return (
+        t.includes('cookie') ||
+        t.includes('privacy') ||
+        t.includes('advertisement') ||
+        t.includes('subscribe') ||
+        t.includes('newsletter') ||
+        t.includes('follow us') ||
+        t.includes('share this') ||
+        t.includes('comment') ||
+        t.includes('©') ||
+        t.includes('all rights reserved') ||
+        t.includes('terms of service') ||
+        t.includes('privacy policy') ||
+        /^mir[aá]\s+tambi[ée]n/.test(t) ||
+        t.includes('te puede interesar') ||
+        t.includes('seguí leyendo') ||
+        t.includes('segui leyendo')
+      );
+    }
+
+    // Detectar host para aplicar selectores específicos
+    let hostname = '';
+    try { hostname = (new URL(url)).hostname.toLowerCase(); } catch {}
+
     // Estrategia 1: Buscar en contenedores específicos de artículos
-    const articleSelectors = [
-      'article',
-      '.article',
-      '.post',
-      '.entry',
-      '.content',
-      '.story',
-      '.news',
-      '.main-content',
-      '.post-content',
-      '.article-content',
-      '.entry-content',
-      '.story-content',
-      '.news-content',
-      '[role="main"]',
-      'main'
-    ];
+    const articleSelectors = (
+      hostname.includes('lanacion.com.ar')
+        ? [
+            // Selectores típicos de cuerpo de nota en La Nación
+            '.com-article__content',
+            '.com-article__body',
+            'article .com-paragraph',
+            'article'
+          ]
+        : [
+            'article',
+            '.article',
+            '.post',
+            '.entry',
+            '.content',
+            '.story',
+            '.news',
+            '.main-content',
+            '.post-content',
+            '.article-content',
+            '.entry-content',
+            '.story-content',
+            '.news-content',
+            '[role="main"]',
+            'main'
+          ]
+    );
 
     for (const selector of articleSelectors) {
       const article = $(selector);
       if (article.length > 0) {
         console.log(`📰 Encontrado contenedor: ${selector}`);
         
-        // Extraer párrafos del artículo
-        const articleParrafos = article.find('p, h2, h3, h4, h5, h6, blockquote, li')
+        // Extraer párrafos del artículo (sin li para evitar listas de relacionados)
+        const articleParrafos = article.find('p, h2, h3, h4, h5, h6, blockquote')
           .map((_, el) => {
             const texto = $(el).text().trim();
+            if (!texto || textoNoDeseado(texto)) return '';
+            if (estaEnBloqueRelacionado(el)) return '';
             return texto;
           })
           .get()
-          .filter(texto => 
-            texto.length > 30 && 
-            !texto.includes('cookie') && 
-            !texto.includes('privacy') && 
-            !texto.includes('advertisement') &&
-            !texto.includes('subscribe') &&
-            !texto.includes('newsletter') &&
-            !texto.includes('follow us') &&
-            !texto.includes('share this') &&
-            !texto.includes('comment') &&
-            !texto.includes('related') &&
-            !texto.includes('©') &&
-            !texto.includes('all rights reserved') &&
-            !texto.includes('terms of service') &&
-            !texto.includes('privacy policy')
-          );
+          .filter(texto => texto && texto.length > 30);
         
         if (articleParrafos.length > 0) {
           parrafos = articleParrafos;
@@ -389,28 +429,15 @@ async function extraerContenidoNoticia(url) {
     if (parrafos.length === 0) {
       console.log(`🔍 Buscando en todo el body...`);
       
-      parrafos = $('body p, body h2, body h3, body h4, body h5, body h6, body blockquote, body li')
+      parrafos = $('body p, body h2, body h3, body h4, body h5, body h6, body blockquote')
         .map((_, el) => {
           const texto = $(el).text().trim();
+          if (!texto || textoNoDeseado(texto)) return '';
+          if (estaEnBloqueRelacionado(el)) return '';
           return texto;
         })
         .get()
-        .filter(texto => 
-          texto.length > 30 && 
-          !texto.includes('cookie') && 
-          !texto.includes('privacy') && 
-          !texto.includes('advertisement') &&
-          !texto.includes('subscribe') &&
-          !texto.includes('newsletter') &&
-          !texto.includes('follow us') &&
-          !texto.includes('share this') &&
-          !texto.includes('comment') &&
-          !texto.includes('related') &&
-          !texto.includes('©') &&
-          !texto.includes('all rights reserved') &&
-          !texto.includes('terms of service') &&
-          !texto.includes('privacy policy')
-        );
+        .filter(texto => texto && texto.length > 30);
     }
 
     // Estrategia 3: Si aún no hay contenido, buscar en cualquier párrafo largo
@@ -631,17 +658,23 @@ async function esClimatechIA(contenido) {
     console.log(`[esClimatechIA] Preview del texto a evaluar: ${previewEntrada}`);
 
     const messages = [
-      { role: "system", content: "Eres un experto en sostenibilidad y tecnologías climáticas." },
-      { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH. 
-      CLIMATECH se define como cualquier conjunto de tecnologías e innovaciones que buscan combatir el cambio climático, reducir emisiones de gases de efecto invernadero, mitigar impactos ambientales o promover la adaptación a nuevas condiciones climáticas.
+      { role: "system", content: "Eres un experto en sostenibilidad, medio ambiente y tecnologías/climatech." },
+      { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH.
       
-      ⚠️ Además, considera como CLIMATECH cualquier artículo que hable de la relación entre TECNOLOGÍA (de cualquier tipo, incluso digital, IA, telecomunicaciones, producción de energía, satélites, etc.) y el MEDIO AMBIENTE o el CAMBIO CLIMÁTICO. 
-      Ejemplo: una noticia sobre "La sed de ChatGPT: la IA consume una cantidad de agua alarmante" debe considerarse CLIMATECH porque conecta el impacto ambiental con una tecnología.
+      Definición ampliada (clasificar como CLIMATECH si cumple AL MENOS uno):
+      1) Relación entre TECNOLOGÍA (cualquier tipo: digital, IA, telecomunicaciones, producción/almacenamiento de energía, sensores, satélites, materiales, etc.) y MEDIO AMBIENTE o CAMBIO CLIMÁTICO.
+      2) Temas SOLO de MEDIO AMBIENTE/CLIMA/SOSTENIBILIDAD con impacto relevante (p.ej.: transición energética, conservación, biodiversidad, agua, emisiones, políticas/regulación climática, economía circular, incendios/mitigación/adaptación).
+      3) Startups/empresas/emprendimientos del rubro climático/cleantech (incluye rondas de inversión, aceleradoras/incubadoras, lanzamientos) aunque no se mencione explícitamente una tecnología.
+      
+      Ejemplos que SON CLIMATECH:
+      - "La IA aumenta el consumo de agua en data centers" (tecnología + ambiente)
+      - "Nueva ronda Serie A para startup de captura de carbono" (startup climática)
+      - "Conservación de humedales clave para la mitigación" (tema ambiental relevante)
       
       Instrucciones:
-      1. Si la noticia cumple con esta definición, responde con "SI".
+      1. Si cumple la definición ampliada, responde con "SI".
       2. Si no cumple, responde con "NO".
-      3. Luego, independientemente de si tu respuesta es 'SI' o 'NO', da una breve explicación (1-3 frases) justificando tu decisión.
+      3. Luego, independientemente de 'SI' o 'NO', da una breve explicación (1-3 frases) justificando.
       
       Noticia a evaluar:
       ${textoAnalisis}` }
@@ -664,17 +697,23 @@ async function esClimatechIA(contenido) {
         const resp2 = await insecureClient.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "Eres un experto en sostenibilidad y tecnologías climáticas." },
-            { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH. 
-      CLIMATECH se define como cualquier conjunto de tecnologías e innovaciones que buscan combatir el cambio climático, reducir emisiones de gases de efecto invernadero, mitigar impactos ambientales o promover la adaptación a nuevas condiciones climáticas.
+            { role: "system", content: "Eres un experto en sostenibilidad, medio ambiente y tecnologías/climatech." },
+            { role: "user", content: `Tu tarea es decidir si una noticia está relacionada con CLIMATECH.
       
-      ⚠️ Además, considera como CLIMATECH cualquier artículo que hable de la relación entre TECNOLOGÍA (de cualquier tipo, incluso digital, IA, telecomunicaciones, etc.) y el MEDIO AMBIENTE o el CAMBIO CLIMÁTICO. 
-      Ejemplo: una noticia sobre "La sed de ChatGPT: la IA consume una cantidad de agua alarmante" debe considerarse CLIMATECH porque conecta el impacto ambiental con una tecnología.
+      Definición ampliada (clasificar como CLIMATECH si cumple AL MENOS uno):
+      1) Relación entre TECNOLOGÍA (cualquier tipo: digital, IA, telecomunicaciones, producción/almacenamiento de energía, sensores, satélites, materiales, etc.) y MEDIO AMBIENTE o CAMBIO CLIMÁTICO.
+      2) Temas SOLO de MEDIO AMBIENTE/CLIMA/SOSTENIBILIDAD con impacto relevante (p.ej.: transición energética, conservación, biodiversidad, agua, emisiones, políticas/regulación climática, economía circular, incendios/mitigación/adaptación).
+      3) Startups/empresas/emprendimientos del rubro climático/cleantech (incluye rondas de inversión, aceleradoras/incubadoras, lanzamientos) aunque no se mencione explícitamente una tecnología.
+      
+      Ejemplos que SON CLIMATECH:
+      - "La IA aumenta el consumo de agua en data centers" (tecnología + ambiente)
+      - "Nueva ronda Serie A para startup de captura de carbono" (startup climática)
+      - "Conservación de humedales clave para la mitigación" (tema ambiental relevante)
       
       Instrucciones:
-      1. Si la noticia cumple con esta definición, responde con "SI".
+      1. Si cumple la definición ampliada, responde con "SI".
       2. Si no cumple, responde con "NO".
-      3. Luego, independientemente de si tu respuesta es 'SI' o 'NO', da una breve explicación (1-3 frases) justificando tu decisión.
+      3. Luego, independientemente de 'SI' o 'NO', da una breve explicación (1-3 frases) justificando.
       
       Noticia a evaluar:
       ${typeof contenido === 'string' ? contenido : String(contenido || '')}` }
@@ -779,7 +818,7 @@ export async function obtenerNewslettersBDD() {
 }
 
 // Función para filtrar newsletters por palabras clave antes del análisis de IA
-function filtrarNewslettersPorPalabrasClave(resumenNoticia, newsletters) {
+function filtrarNewslettersPorPalabrasClave(resumenNoticia, newsletters, opciones = {}) {
   try {
     console.log(`🔍 [FILTRO POR NOTICIA] Filtrando newsletters por palabras clave antes del análisis de IA...`);
     
@@ -789,12 +828,13 @@ function filtrarNewslettersPorPalabrasClave(resumenNoticia, newsletters) {
 
     const resumen = typeof resumenNoticia === 'string' ? resumenNoticia : String(resumenNoticia || '');
     const resumenNormalizado = removeDiacritics(resumen.toLowerCase());
+    const limite = Math.max(1, Math.min(Number(opciones?.limiteTop) || 20, 100));
     
     // Extraer tokens del resumen de la noticia
     const tokensNoticia = tokenize(resumen);
     const tokensNoticiaSet = new Set(tokensNoticia);
     
-    const newslettersFiltrados = [];
+    const candidatos = [];
     
     for (const newsletter of newsletters) {
       const textoNewsletter = `${newsletter.titulo || ''}\n\n${newsletter.Resumen || ''}`.trim();
@@ -817,29 +857,39 @@ function filtrarNewslettersPorPalabrasClave(resumenNoticia, newsletters) {
       // Calcular score de similitud usando Jaccard
       const similitudJaccard = jaccard(tokensNoticiaSet, tokensNewsletterSet);
       
-      // Criterios para pasar el filtro
-      const pasaFiltro = coincidenciasTokens.length >= 5 || 
-                        coincidenciasClave >= 2 || 
-                        similitudJaccard >= 0.1;
-      
-      if (pasaFiltro) {
-        newslettersFiltrados.push({
+      // Score compuesto para ranking rápido
+      const scoreFiltro = (
+        coincidenciasTokens.length * 1.0 +       // importancia media
+        coincidenciasClave * 2.5 +               // darle más peso a keywords climatech
+        (similitudJaccard * 100) * 0.6           // convertir a escala similar y ponderar
+      );
+
+      // Criterios mínimos para ser candidato
+      const esCandidato = coincidenciasTokens.length >= 3 || coincidenciasClave >= 1 || similitudJaccard >= 0.08;
+
+      if (esCandidato) {
+        candidatos.push({
           ...newsletter,
           _scoreFiltro: {
             coincidenciasTokens: coincidenciasTokens.length,
             coincidenciasClave,
-            similitudJaccard: Math.round(similitudJaccard * 100) / 100
+            similitudJaccard: Math.round(similitudJaccard * 100) / 100,
+            score: Math.round(scoreFiltro)
           }
         });
-        
-        console.log(`✅ Newsletter pasa filtro: ${newsletter.titulo} (tokens: ${coincidenciasTokens.length}, claves: ${coincidenciasClave}, jaccard: ${Math.round(similitudJaccard * 100) / 100})`);
+
+        console.log(`✅ Candidato: ${newsletter.titulo} (score: ${Math.round(scoreFiltro)}, tokens: ${coincidenciasTokens.length}, claves: ${coincidenciasClave}, jaccard: ${Math.round(similitudJaccard * 100) / 100})`);
       } else {
-        console.log(`❌ Newsletter filtrado: ${newsletter.titulo} (tokens: ${coincidenciasTokens.length}, claves: ${coincidenciasClave}, jaccard: ${Math.round(similitudJaccard * 100) / 100})`);
+        console.log(`❌ Newsletter descartado: ${newsletter.titulo} (tokens: ${coincidenciasTokens.length}, claves: ${coincidenciasClave}, jaccard: ${Math.round(similitudJaccard * 100) / 100})`);
       }
     }
     
-    console.log(`📊 [FILTRO POR NOTICIA] Filtro completado: ${newslettersFiltrados.length}/${newsletters.length} newsletters pasan el filtro de palabras clave para esta noticia`);
-    return newslettersFiltrados;
+    // Ordenar por score descendente y limitar al top N
+    const ordenados = candidatos.sort((a,b) => (b?._scoreFiltro?.score || 0) - (a?._scoreFiltro?.score || 0));
+    const top = ordenados.slice(0, limite);
+
+    console.log(`📊 [FILTRO POR NOTICIA] Seleccionados top ${top.length}/${newsletters.length} newsletters (límite=${limite}) para análisis IA`);
+    return top;
     
   } catch (error) {
     console.error(`❌ Error en filtro de palabras clave: ${error.message}`);
@@ -859,7 +909,7 @@ async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNotic
     }
 
     // APLICAR FILTRO DE PALABRAS CLAVE ANTES DEL ANÁLISIS DE IA
-    const newslettersFiltrados = filtrarNewslettersPorPalabrasClave(resumen, newsletters);
+    const newslettersFiltrados = filtrarNewslettersPorPalabrasClave(resumen, newsletters, { limiteTop: 25 });
     
     if (newslettersFiltrados.length === 0) {
       console.log(`⚠️ Ningún newsletter pasó el filtro de palabras clave`);
@@ -1190,8 +1240,8 @@ export async function procesarUrlsYPersistir(items = []) {
       if (relacionados.length > 0) {
         // Si hay newsletters relacionados, crear trends con esas relaciones
         for (const nl of relacionados) {
-          try {
-            const payload = {
+        try {
+          const payload = {
               id_newsletter: nl.id ?? null,
               Título_del_Trend: resultado.titulo || tituloTrend,
               Link_del_Trend: url,
@@ -1242,7 +1292,7 @@ export async function procesarUrlsYPersistir(items = []) {
             Nombre_Newsletter_Relacionado: '', // Vacío
             Fecha_Relación: new Date().toISOString(),
             Relacionado: false, // No relacionado
-            Analisis_relacion: resultado.analisisSinRelacion || 'Noticia climatech sin newsletters relacionados'
+            Analisis_relacion: (resultado.motivoSinRelacion || '').trim() || 'Noticia climatech sin newsletters relacionados'
           };
           const createdTrend = await trendsSvc.createAsync(payload);
           

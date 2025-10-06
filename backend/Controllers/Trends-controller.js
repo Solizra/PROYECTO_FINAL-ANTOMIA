@@ -7,7 +7,18 @@ const svc = new TrendsService();
 
 router.post('', async (req, res) => {
   try {
-    const created = await svc.createAsync(req.body || {});
+    // Coaccionar tipos básicos por seguridad
+    const b = req.body || {};
+    const norm = {
+      id_newsletter: b.id_newsletter,
+      Título_del_Trend: b.Título_del_Trend,
+      Link_del_Trend: b.Link_del_Trend,
+      Nombre_Newsletter_Relacionado: b.Nombre_Newsletter_Relacionado,
+      Fecha_Relación: b.Fecha_Relación,
+      Relacionado: b.Relacionado,
+      Analisis_relacion: b.Analisis_relacion
+    };
+    const created = await svc.createAsync(norm);
     res.status(201).json(created);
   } catch (e) {
     console.error('Error creando Trend:', e);

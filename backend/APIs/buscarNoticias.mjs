@@ -16,9 +16,9 @@ function restarDias(fecha, dias) {
   return nuevaFecha;
 }
 
-// 🔍 Query mejorada para buscar noticias más relevantes de climatech
+// 🔍 Query ampliada para incluir climatech, medio ambiente y startups del rubro
 const query = `(
-  "medio ambiente" OR "adaptación climática" OR "regulación climática" OR "cambio climático" OR "eficiencia energética" OR "emisiones" OR sostenibilidad OR "energía renovable" OR "energias renovables" OR climatech OR cleantech OR "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular" OR "tecnología climática" OR "captura de carbono" OR "Inteligencia Artificial" OR IA OR "IA climática" OR "finanzas climáticas" OR "cero neto" OR "transición energética" OR ESG
+  "medio ambiente" OR "impacto ambiental" OR "adaptación climática" OR "regulación climática" OR "cambio climático" OR "eficiencia energética" OR "emisiones" OR sostenibilidad OR "energía renovable" OR "energias renovables" OR climatech OR cleantech OR "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular" OR "tecnología climática" OR "captura de carbono" OR "Inteligencia Artificial" OR IA OR "IA climática" OR "finanzas climáticas" OR "cero neto" OR "transición energética" OR ESG OR biodiversidad OR ecosistemas OR "gestión hídrica" OR "gestión del agua" OR sequía OR desertificación OR "minería sostenible" OR "minería responsable" OR litio OR baterías OR "energía limpia" OR "economía verde" OR "empleos verdes" OR "finanzas verdes" OR "startup climática" OR "startup climate" OR "climate startup" OR "ronda de inversión" OR financiación OR inversión OR incubadora OR aceleradora
 )`;
 
 // 📰 Medios confiables (dominios) para restringir resultados - MEJORADOS para climatech
@@ -71,7 +71,7 @@ const trustedDomains = [
 
 const sortBy = 'relevancy';
 const language = 'es';
-// Palabras clave para filtrar temática - MEJORADAS para climatech trending
+// Palabras clave para filtrar temática - ampliadas para climatech, medio ambiente y startups
 const TOPIC_KEYWORDS = [
   // Términos trending en climatech
   'climate tech funding', 'climate tech investment', 'climate tech startup',
@@ -109,7 +109,14 @@ const TOPIC_KEYWORDS = [
   'industria 4.0', 'tecnología limpia', 'innovación sostenible',
   'economía verde', 'empleos verdes', 'inversión responsable',
   'ESG', 'criterios ambientales', 'finanzas verdes',
-  'política ambiental', 'regulación climática', 'acuerdos ambientales'
+  'política ambiental', 'regulación climática', 'acuerdos ambientales',
+  
+  // Startups y ecosistema emprendedor del rubro
+  'startup climate', 'climate startup', 'climatech startup', 'cleantech startup',
+  'startup climática', 'startup verde', 'startup sostenible', 'emprendimiento verde',
+  'ronda de inversión', 'serie A', 'serie B', 'seed', 'capital de riesgo',
+  'venture capital', 'VC', 'aceleradora', 'incubadora', 'financiación', 'inversión',
+  'pitch', 'demo day'
 ];
 
 function removeDiacriticsLocal(str) {
@@ -157,7 +164,9 @@ function calculateNewsScore(article, trustedDomains) {
       'battery breakthrough', 'AI climate', 'net zero', 'carbon neutral',
       'environmental impact', 'sustainability', 'biodiversity', 'ecosystems',
       'sustainable mining', 'lithium mining', 'battery materials', 'clean energy',
-      'climate change', 'water management', 'green technology', 'ESG'
+      'climate change', 'water management', 'green technology', 'ESG',
+      // Startups/financiación
+      'climate startup', 'cleantech startup', 'funding round', 'series a', 'series b', 'seed round', 'venture capital', 'vc'
     ];
     
     for (const keyword of trendingKeywords) {
@@ -286,7 +295,8 @@ async function buscarNoticias(maxResults = 3) { // limitado a 3 noticias máximo
         if (textNorm.includes(kNorm)) hits++;
         if (hits >= 2) break;
       }
-      return hits >= 1 && a.score >= 10; // Bajado de 15 a 10 para ser más inclusivo
+      // Mantener inclusivo para ambiente/startups: basta 1 keyword si el score es >= 10
+      return hits >= 1 && a.score >= 10;
     });
     
     const chosen = topical.length > 0 ? topical : scoredArticles.filter(a => a.score >= 8); // Bajado de 10 a 8
