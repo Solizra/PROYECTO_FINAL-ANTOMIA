@@ -18,7 +18,7 @@ function restarDias(fecha, dias) {
 
 // 🔍 Query ampliada para incluir climatech, medio ambiente y startups del rubro
 const query = `(
-  "medio ambiente" OR "impacto ambiental" OR "adaptación climática" OR "regulación climática" OR "cambio climático" OR "eficiencia energética" OR "emisiones" OR sostenibilidad OR "energía renovable" OR "energias renovables" OR climatech OR cleantech OR "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular" OR "tecnología climática" OR "captura de carbono" OR "Inteligencia Artificial" OR IA OR "IA climática" OR "finanzas climáticas" OR "cero neto" OR "transición energética" OR ESG OR biodiversidad OR ecosistemas OR "gestión hídrica" OR "gestión del agua" OR sequía OR desertificación OR "minería sostenible" OR "minería responsable" OR litio OR baterías OR "energía limpia" OR "economía verde" OR "empleos verdes" OR "finanzas verdes" OR "startup climática" OR "startup climate" OR "climate startup" OR "ronda de inversión" OR financiación OR inversión OR incubadora OR aceleradora
+  "medio ambiente" OR "impacto ambiental" OR "cambio climático" OR "eficiencia energética" OR sostenibilidad OR "energía renovable" OR cleantech OR "tecnología ambiental" OR "hidrógeno verde" OR "movilidad eléctrica" OR "economía circular" OR "captura de carbono" OR IA OR "IA climática" OR "transición energética" OR ESG OR biodiversidad OR "gestión del agua" OR sequía OR "minería sostenible" OR litio OR baterías OR "energía limpia" OR "economía verde"
 )`;
 
 // 📰 Medios confiables (dominios) para restringir resultados - MEJORADOS para climatech

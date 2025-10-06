@@ -28,6 +28,13 @@ router.post('/analizar', async (req, res) => {
       return res.status(400).json({ error: 'Falta el campo "input" (URL o texto) en el body.' });
     }
     const resultado = await analizarNoticiaEstructurada(input);
+    console.log('🔍 Resultado del análisis:', {
+      esClimatech: resultado.esClimatech,
+      url: resultado.url,
+      titulo: resultado.titulo,
+      newslettersRelacionados: resultado.newslettersRelacionados?.length || 0,
+      motivoSinRelacion: resultado.motivoSinRelacion
+    });
 
     // Guardado en BDD:
     // - Si esClimatech y link válido y hay relacionados -> guardar cada relación
@@ -90,6 +97,11 @@ router.post('/analizar', async (req, res) => {
         newsletterLink: ''
       });
     }
+
+    console.log('📊 Resultado final del controller:', {
+      insertsCount: inserts.length,
+      inserts: inserts.map(i => ({ id: i.id, titulo: i.Título_del_Trend, relacionado: i.Relacionado }))
+    });
 
     res.status(200).json({
       ...resultado,

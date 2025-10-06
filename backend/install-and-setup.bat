@@ -1,53 +1,28 @@
 @echo off
 echo ========================================
-echo INSTALACION Y CONFIGURACION COMPLETA
-echo PROYECTO ANTOMIA - BASE DE DATOS
+echo INSTALACION COMPLETA ANTOMIA
 echo ========================================
 echo.
 
-echo 1. Verificando dependencias de Node.js...
-node --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ERROR: Node.js no esta instalado.
-    echo Descarga e instala Node.js desde: https://nodejs.org/
-    pause
-    exit /b 1
-)
-echo ✅ Node.js encontrado.
-
-echo.
-echo 2. Instalando dependencias de npm...
-npm install
-if %errorlevel% neq 0 (
-    echo ERROR: No se pudieron instalar las dependencias.
-    pause
-    exit /b 1
-)
-echo ✅ Dependencias instaladas.
-
-echo.
-echo 3. Verificando si PostgreSQL esta instalado...
+echo 1. Verificando si PostgreSQL esta instalado...
 where psql >nul 2>&1
 if %errorlevel% neq 0 (
-    echo.
-    echo ⚠️  PostgreSQL no esta instalado.
+    echo ERROR: PostgreSQL no esta instalado.
     echo.
     echo Para instalar PostgreSQL:
     echo 1. Ve a https://www.postgresql.org/download/windows/
-    echo 2. Descarga PostgreSQL para Windows (version 15 o superior)
-    echo 3. Ejecuta el instalador como administrador
-    echo 4. IMPORTANTE: Anota la contraseña del usuario 'postgres'
-    echo 5. Completa la instalacion
-    echo 6. Ejecuta este script nuevamente
+    echo 2. Descarga e instala PostgreSQL para Windows
+    echo 3. Durante la instalacion, anota la contraseña del usuario 'postgres'
+    echo 4. Ejecuta este script nuevamente
     echo.
     pause
     exit /b 1
 )
 
-echo ✅ PostgreSQL encontrado.
-
+echo PostgreSQL encontrado.
 echo.
-echo 4. Verificando si el servicio PostgreSQL esta ejecutandose...
+
+echo 2. Verificando si el servicio PostgreSQL esta ejecutandose...
 sc query postgresql-x64-15 >nul 2>&1
 if %errorlevel% neq 0 (
     echo Iniciando servicio PostgreSQL...
@@ -60,61 +35,81 @@ if %errorlevel% neq 0 (
     )
 )
 
-echo ✅ Servicio PostgreSQL ejecutandose.
-
+echo Servicio PostgreSQL ejecutandose.
 echo.
-echo 5. Creando archivo .env...
+
+echo 3. Creando archivo de configuracion .env...
 if not exist .env (
-    copy env.example .env
-    echo ✅ Archivo .env creado.
-    echo.
-    echo ⚠️  IMPORTANTE: Edita el archivo .env con tu contraseña de PostgreSQL
-    echo    Cambia 'tu_password' por la contraseña real del usuario postgres
-    echo.
-    echo Presiona cualquier tecla para abrir el archivo .env...
-    pause >nul
-    notepad .env
+    if exist env.example (
+        copy env.example .env
+        echo Archivo .env creado desde env.example
+        echo.
+        echo IMPORTANTE: Edita el archivo .env y cambia 'tu_password_aqui' por tu contraseña real de PostgreSQL
+        echo.
+    ) else (
+        echo Creando archivo .env basico...
+        echo DB_HOST=localhost > .env
+        echo DB_DATABASE=climatetech_db >> .env
+        echo DB_USER=postgres >> .env
+        echo DB_PASSWORD=tu_password_aqui >> .env
+        echo DB_PORT=5432 >> .env
+        echo PORT=3000 >> .env
+        echo NODE_ENV=development >> .env
+        echo.
+        echo IMPORTANTE: Edita el archivo .env y cambia 'tu_password_aqui' por tu contraseña real de PostgreSQL
+        echo.
+    )
 ) else (
-    echo ✅ Archivo .env ya existe.
+    echo Archivo .env ya existe.
 )
 
-echo.
-echo 6. Verificando archivo .env...
-echo ✅ Archivo .env configurado correctamente.
-
-echo.
-echo 7. Creando base de datos y tablas...
+echo 4. Creando base de datos y tablas...
 echo Ejecutando script SQL...
 psql -U postgres -f database-setup.sql
 
 if %errorlevel% neq 0 (
+    echo ERROR: No se pudo ejecutar el script SQL
+    echo Verifica que la contraseña sea correcta
     echo.
-    echo ⚠️  No se pudo ejecutar el script SQL automaticamente.
     echo Para ejecutar manualmente:
-    echo 1. Abre Command Prompt como administrador
-    echo 2. Ejecuta: psql -U postgres -f database-setup.sql
-    echo 3. Ingresa tu contraseña cuando se solicite
+    echo psql -U postgres -f database-setup.sql
     echo.
+    echo O edita el archivo .env con la contraseña correcta y ejecuta:
+    echo setup-database.bat
     pause
+    exit /b 1
 )
 
 echo.
-echo 8. Verificando configuracion final...
-echo ✅ Configuracion completada exitosamente.
+echo 5. Instalando dependencias de Node.js...
+if exist package.json (
+    npm install
+    if %errorlevel% neq 0 (
+        echo ERROR: No se pudieron instalar las dependencias
+        echo Verifica que Node.js este instalado
+        pause
+        exit /b 1
+    )
+) else (
+    echo ERROR: No se encontro package.json
+    echo Asegurate de estar en el directorio backend
+    pause
+    exit /b 1
+)
 
 echo.
 echo ========================================
-echo INSTALACION COMPLETADA
+echo INSTALACION COMPLETADA EXITOSAMENTE
 echo ========================================
 echo.
 echo Ahora puedes:
-echo 1. Ejecutar: npm start
-echo 2. El servidor estara disponible en: http://localhost:3000
-echo 3. Las APIs estaran en: http://localhost:3000/api/Newsletter
+echo 1. Verificar que el archivo .env tenga la contraseña correcta
+echo 2. Ejecutar: npm start
+echo 3. Abrir: http://localhost:3000/api/Trends
 echo.
-echo Para verificar que todo funciona:
-echo 1. Abre tu navegador
-echo 2. Ve a: http://localhost:3000/api/Newsletter
-echo 3. Deberias ver los newsletters de ejemplo
+echo Para probar la conexion:
+echo GET http://localhost:3000/api/Newsletter
+echo GET http://localhost:3000/api/Trends
+echo GET http://localhost:3000/api/Fuentes
 echo.
 pause

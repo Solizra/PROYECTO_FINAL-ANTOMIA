@@ -75,6 +75,12 @@ export default class TrendsRepository {
         ];
         const existing = await client.query(checkSql, checkParams);
         if (existing.rows.length > 0) {
+          console.log('⛔ Duplicado detectado:', {
+            link: clean.Link_del_Trend,
+            id_newsletter: clean.id_newsletter,
+            nombre: clean.Nombre_Newsletter_Relacionado,
+            existingId: existing.rows[0].id
+          });
           return { id: existing.rows[0].id, duplicated: true };
         }
       } catch (dupErr) {
@@ -102,8 +108,15 @@ export default class TrendsRepository {
         clean.Analisis_relacion
       ];
       const result = await client.query(sql, params);
+      const inserted = result.rows[0] || { id: null };
+      console.log('✅ Trend insertado exitosamente:', {
+        id: inserted.id,
+        titulo: inserted['Título_del_Trend'],
+        relacionado: inserted.Relacionado,
+        id_newsletter: inserted.id_newsletter
+      });
       // Devolver el registro completo insertado (útil para front y validación)
-      return result.rows[0] || { id: null };
+      return inserted;
     } catch (err) {
       console.error('Error insertando en Trends:', err);
       throw err;
@@ -132,19 +145,17 @@ export default class TrendsRepository {
     }
   }
 
-  async listAsync({ page = 1, limit = 20 } = {}) {
+  async listAsync({ page = 1, limit = 1000 } = {}) {
     const client = new Client(DBConfig);
     const offset = (page - 1) * limit;
     try {
       await client.connect();
-      // Devolver solo una fila por par (Link_del_Trend, id_newsletter), priorizando la más reciente
-      // y excluir pares que estén en la blacklist de EventBus (si existe en proceso)
+      // Devolver todos los trends ordenados por fecha más reciente
       const sql = `
-        SELECT DISTINCT ON (t."Link_del_Trend", COALESCE(t."id_newsletter", -1))
-               t."id", t."id_newsletter", t."Título_del_Trend", t."Link_del_Trend",
+        SELECT t."id", t."id_newsletter", t."Título_del_Trend", t."Link_del_Trend",
                t."Nombre_Newsletter_Relacionado", t."Fecha_Relación", t."Relacionado", t."Analisis_relacion"
         FROM "Trends" t
-        ORDER BY t."Link_del_Trend", COALESCE(t."id_newsletter", -1), t."id" DESC
+        ORDER BY t."Fecha_Relación" DESC, t."id" DESC
         LIMIT $1 OFFSET $2
       `;
       const result = await client.query(sql, [limit, offset]);

@@ -30,142 +30,49 @@ function Home() {
     if (!user) {
       navigate("/"); // si no hay sesión, redirige a login
     }
-    const saved = localStorage.getItem('trends');
-    if (saved) {
-      try { setTrends(JSON.parse(saved)); return; } catch {}
-    }
-
-            // Si no hay datos en localStorage, cargar los Trends guardados en BDD
-        (async () => {
-          try {
-            const res = await fetch('http://localhost:3000/api/Trends');
-            if (!res.ok) return;
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-              const mapped = data.map((t, idx) => ({
-                id: t.id ?? idx,
-                newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
-                newsletterId: t.id_newsletter ?? '',
-                fechaRelacion: t.Fecha_Relación || '',
-                trendTitulo: t.Título_del_Trend || '',
-                trendLink: t.Link_del_Trend || '',
-                relacionado: !!t.Relacionado,
-                newsletterLink: '',
-                analisisRelacion: t.Analisis_relacion || '',
-                resumenFama: '',
-                autor: '',
-              }));
-              setTrends(sortByDateDesc(mapped));
-            }
-          } catch {}
-        })();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('trends', JSON.stringify(trends));
-  }, [trends]);
-
-  // Carga automática: toma URLs guardadas por el backend y las analiza para poblar la tabla
-  useEffect(() => {
-    const cargarUltimasNoticias = async () => {
+    // Cargar siempre desde la BDD al iniciar
+    (async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/news/latest');
+        console.log('🔄 Cargando trends desde la base de datos...');
+        const res = await fetch('http://localhost:3000/api/Trends?limit=1000');
+        console.log('📡 Respuesta del servidor:', res.status, res.statusText);
+        
         if (!res.ok) {
-          console.log('⚠️ Backend no disponible para cargar noticias');
+          console.error('❌ Error en la respuesta del servidor:', res.status, res.statusText);
           return;
         }
-        const urls = await res.json();
-        if (!Array.isArray(urls) || urls.length === 0) return;
-
-        // Limitar cantidad inicial para no saturar
-        const primeros = urls.slice(0, 5);
-
-        const resultados = await Promise.all(
-          primeros.map(async (item) => {
-            try {
-              const r = await fetch('http://localhost:3000/api/Newsletter/analizar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: item.url })
-              });
-              const data = await r.json().catch(() => null);
-              if (!r.ok || !data) return null;
-
-              const baseFilas = (data.newslettersRelacionados || []).map((nl, idx) => ({
-                id: nl.id ?? idx,
-                newsletterTitulo: nl.titulo || '',
-                newsletterId: nl.id ?? '',
-                fechaRelacion: nl.fechaRelacion || new Date().toISOString(),
-                trendTitulo: data.titulo || '',
-                trendLink: data.url || '',
-                relacionado: true,
-                newsletterLink: nl.link || '',
-                analisisRelacion: nl.analisisRelacion || '',
-                resumenFama: data.resumenFama || '',
-                autor: data.autor || '',
-              }));
-
-              const filas = (data.inserts && data.inserts.length > 0)
-                ? data.inserts.map((ins, idx) => ({
-                    id: ins.id ?? idx,
-                    newsletterTitulo: ins.Nombre_Newsletter_Relacionado || '',
-                    newsletterId: ins.id_newsletter ?? '',
-                    fechaRelacion: ins.Fecha_Relación || new Date().toISOString(),
-                    trendTitulo: ins.Título_del_Trend || data.titulo || '',
-                    trendLink: ins.Link_del_Trend || data.url || '',
-                    relacionado: !!ins.Relacionado,
-                    newsletterLink: ins.newsletterLink || '',
-                    analisisRelacion: ins.Analisis_relacion || 'Sin análisis disponible',
-                    resumenFama: data.resumenBreve || data.resumenFama || '',
-                    autor: data.autor || '',
-                  }))
-                : (baseFilas.length > 0 ? baseFilas : []);
-
-              return filas;
-            } catch {
-              return null;
-            }
-          })
-        );
-
-        const compactas = resultados
-          .filter(Boolean)
-          .flat();
-        if (compactas.length) {
-          setTrends((prev) => {
-            const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
-            const nuevosUnicos = compactas.filter(f => {
-              const key = `${f.trendLink}|${f.newsletterId ?? 'null'}`;
-              if (seen.has(key)) return false;
-              seen.add(key);
-              return true;
-            });
-            // Evitar duplicados también por id si backend reusa id
-            const byId = new Set(prev.map(p => String(p.id)));
-            const dedupPorId = nuevosUnicos.filter(f => {
-              const fid = String(f.id);
-              if (byId.has(fid)) return false;
-              byId.add(fid);
-              return true;
-            });
-            return sortByDateDesc([...prev, ...dedupPorId]);
-          });
+        
+        const data = await res.json();
+        console.log('📊 Datos recibidos:', data.length, 'trends');
+        console.log('📋 Primer trend:', data[0]);
+        
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((t, idx) => ({
+            id: t.id ?? idx,
+            newsletterTitulo: t.Nombre_Newsletter_Relacionado || '',
+            newsletterId: t.id_newsletter ?? '',
+            fechaRelacion: t.Fecha_Relación || '',
+            trendTitulo: t.Título_del_Trend || '',
+            trendLink: t.Link_del_Trend || '',
+            relacionado: !!t.Relacionado,
+            newsletterLink: '',
+            analisisRelacion: t.Analisis_relacion || '',
+            resumenFama: '',
+            autor: '',
+          }));
+          console.log('🗂️ Trends mapeados:', mapped.length);
+          console.log('📝 Primer trend mapeado:', mapped[0]);
+          setTrends(sortByDateDesc(mapped));
+        } else {
+          console.log('ℹ️ No hay trends en la base de datos');
         }
-              } catch (e) {
-          // Manejar errores de conexión silenciosamente
-          if (e.name === 'TypeError' && e.message.includes('fetch')) {
-            console.log('⚠️ Backend no disponible - Error de conexión');
-          } else {
-            console.log('⚠️ Error cargando noticias:', e.message);
-          }
-        }
-    };
+      } catch (error) {
+        console.error('❌ Error cargando trends:', error);
+      }
+    })();
+  }, []);
 
-    // Solo si aún no hay tendencias cargadas en memoria
-    if (trends.length === 0) {
-      cargarUltimasNoticias();
-    }
-  }, [trends.length]);
+  // Eliminado: auto-análisis que poblaba tabla sin depender de la BDD
 
   // Conexión a Server-Sent Events para actualizaciones en tiempo real
   useEffect(() => {
@@ -197,17 +104,8 @@ function Home() {
             
             switch (data.type) {
               case 'newTrend':
-                console.log('🎯 Evento newTrend recibido:', data.data);
-                // Agregar nuevo trend a la lista
-                const newTrend = data.data;
-                setTrends(prev => {
-                  const key = `${newTrend.trendLink}|${newTrend.newsletterId ?? 'null'}`;
-                  const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
-                  if (seen.has(key)) return prev; // evitar duplicado
-                  const updated = [newTrend, ...prev];
-                  return sortByDateDesc(updated);
-                });
-                console.log('✅ Nuevo trend agregado en tiempo real:', newTrend.trendTitulo);
+                console.log('🎯 Evento newTrend recibido. Recargando desde BDD.');
+                cargarTrendsDesdeBDD();
                 break;
                 
               case 'newsUpdate':
@@ -344,13 +242,20 @@ function Home() {
   const cargarTrendsDesdeBDD = async () => {
     try {
       console.log('🔄 Recargando trends desde la base de datos...');
-      const res = await fetch('http://localhost:3000/api/Trends');
+      const res = await fetch('http://localhost:3000/api/Trends?limit=1000');
+      console.log('📡 Respuesta cargarTrendsDesdeBDD:', res.status, res.statusText);
+      
       if (!res.ok) {
         console.log('⚠️ Backend no disponible para cargar trends');
         return;
       }
       const data = await res.json();
-      if (!Array.isArray(data)) return;
+      console.log('📊 Datos cargarTrendsDesdeBDD:', data.length, 'trends');
+      
+      if (!Array.isArray(data)) {
+        console.log('❌ Los datos no son un array:', typeof data, data);
+        return;
+      }
       
       const mapped = data.map((t, idx) => ({
         id: t.id ?? idx,
@@ -362,34 +267,36 @@ function Home() {
         relacionado: !!t.Relacionado,
         newsletterLink: '',
         analisisRelacion: t.Analisis_relacion || '',
-                   resumenFama: '',
+        resumenFama: '',
         autor: '',
       }));
       
-             if (mapped.length) {
-         const trendsAnteriores = trends.length;
-         setTrends(sortByDateDesc(mapped));
-         
-         // Solo mostrar mensaje de "nuevos trends" si realmente hay más que antes
-         if (trendsAnteriores > 0 && mapped.length > trendsAnteriores) {
-           const nuevos = mapped.length - trendsAnteriores;
-           console.log(`🎉 ¡Se agregaron ${nuevos} nuevos trends a la tabla!`);
-           console.log(`📊 Total anterior: ${trendsAnteriores} → Total actual: ${mapped.length}`);
-         } else if (trendsAnteriores === 0) {
-           console.log(`✅ Carga inicial: Se cargaron ${mapped.length} trends desde la BDD`);
-         } else {
-           console.log(`✅ Se recargaron ${mapped.length} trends desde la BDD (sin cambios)`);
-         }
-       } else {
-         console.log('ℹ️ No hay trends en la base de datos');
-       }
-         } catch (error) {
-       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-         console.log('⚠️ Backend no disponible - Error de conexión');
-       } else {
-         console.error('❌ Error cargando trends desde BDD:', error);
-       }
-     }
+      console.log('🗂️ Trends mapeados en cargarTrendsDesdeBDD:', mapped.length);
+      
+      if (mapped.length) {
+        const trendsAnteriores = trends.length;
+        setTrends(sortByDateDesc(mapped));
+        
+        // Solo mostrar mensaje de "nuevos trends" si realmente hay más que antes
+        if (trendsAnteriores > 0 && mapped.length > trendsAnteriores) {
+          const nuevos = mapped.length - trendsAnteriores;
+          console.log(`🎉 ¡Se agregaron ${nuevos} nuevos trends a la tabla!`);
+          console.log(`📊 Total anterior: ${trendsAnteriores} → Total actual: ${mapped.length}`);
+        } else if (trendsAnteriores === 0) {
+          console.log(`✅ Carga inicial: Se cargaron ${mapped.length} trends desde la BDD`);
+        } else {
+          console.log(`✅ Se recargaron ${mapped.length} trends desde la BDD (sin cambios)`);
+        }
+      } else {
+        console.log('ℹ️ No hay trends en la base de datos');
+      }
+    } catch (error) {
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        console.log('⚠️ Backend no disponible - Error de conexión');
+      } else {
+        console.error('❌ Error cargando trends desde BDD:', error);
+      }
+    }
   };
 
   // Fallback: refresco automático cada 60s desde la BDD (solo si no hay SSE)
@@ -397,7 +304,7 @@ function Home() {
     let isMounted = true;
     const cargarTrends = async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/Trends');
+        const res = await fetch('http://localhost:3000/api/Trends?limit=1000');
         if (!res.ok) {
           console.log('⚠️ Fallback: Backend no disponible');
           return;
@@ -502,51 +409,11 @@ function Home() {
 
       console.log('🔍 Resultado del análisis manual:', data);
 
-      // Si la API devolvió inserts (ids guardados), úsalo; sino usa map base
-      const baseFilas = (data.newslettersRelacionados || []).map((nl, idx) => ({
-        id: nl.id ?? idx,
-        newsletterTitulo: nl.titulo || '',
-        newsletterId: nl.id ?? '',
-        fechaRelacion: nl.fechaRelacion || new Date().toISOString(),
-        trendTitulo: data.titulo || '',
-        trendLink: data.url || '',
-        relacionado: true,
-        newsletterLink: nl.link || '',
-        analisisRelacion: nl.analisisRelacion || '',
-        resumenFama: data.resumenFama || '',
-        autor: data.autor || '',
-      }));
-      
-      const filas = (data.inserts && data.inserts.length > 0)
-        ? data.inserts.map((ins, idx) => ({
-            id: ins.id ?? idx,
-            newsletterTitulo: ins.Nombre_Newsletter_Relacionado || '',
-            newsletterId: ins.id_newsletter ?? '',
-            fechaRelacion: ins.Fecha_Relación || new Date().toISOString(),
-            trendTitulo: ins.Título_del_Trend || data.titulo || '',
-            trendLink: ins.Link_del_Trend || data.url || '',
-            relacionado: !!ins.Relacionado,
-            newsletterLink: ins.newsletterLink || '',
-            analisisRelacion: ins.Analisis_relacion || 'Sin análisis disponible',
-            resumenFama: data.resumenFama || '',
-            autor: data.autor || '',
-          }))
-        : (baseFilas.length > 0 ? baseFilas : []);
-
-      // Agregar a la tabla local evitando duplicados por clave y por id
-      setTrends((prev) => {
-        const seen = new Set(prev.map(p => `${p.trendLink}|${p.newsletterId ?? 'null'}`));
-        const byId = new Set(prev.map(p => String(p.id)));
-        const nuevosUnicos = filas.filter(f => {
-          const key = `${f.trendLink}|${f.newsletterId ?? 'null'}`;
-          const fid = String(f.id);
-          if (seen.has(key) || byId.has(fid)) return false;
-          seen.add(key);
-          byId.add(fid);
-          return true;
-        });
-        return sortByDateDesc([...prev, ...nuevosUnicos]);
-      });
+      // Mostrar solo filas realmente insertadas en la BDD
+      const inserts = Array.isArray(data.inserts) ? data.inserts : [];
+      if (inserts.length > 0) {
+        await cargarTrendsDesdeBDD();
+      }
       
       // Mostrar mensaje de éxito
       if (data.inserts && data.inserts.length > 0) {
@@ -564,13 +431,9 @@ function Home() {
         setTimeout(() => {
           setSuccess('');
         }, 5000);
-      } else if (data.esClimatech) {
-        console.log('ℹ️ Noticia clasificada como Climatech pero no se crearon trends');
-        setError('Noticia clasificada como Climatech pero no se crearon trends');
-        setSuccess('');
       } else {
-        console.log('ℹ️ Noticia no clasificada como Climatech');
-        setError('La noticia no fue clasificada como Climatech');
+        // No mostrar nada si no hubo insert; evitar filas sintéticas
+        setError('');
         setSuccess('');
       }
       
