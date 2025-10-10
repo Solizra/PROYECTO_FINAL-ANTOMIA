@@ -6,6 +6,9 @@
   font-family: 'Segoe UI', sans-serif;
 }
 
+
+
+
 .sidebar {
   width: 220px;
   background-color: #2a2a2e;
@@ -15,11 +18,17 @@
   align-items: flex-start;
 }
 
+
+
+
 .sidebar .logo {
   font-size: 24px;
   margin-bottom: 20px;
   color: #76f6ff;
 }
+
+
+
 
 .sidebar h2 {
   font-size: 20px;
@@ -27,11 +36,17 @@
   margin-bottom: 30px;
 }
 
+
+
+
 .sidebar ul {
   list-style: none;
   padding: 0;
   width: 100%;
 }
+
+
+
 
 .sidebar li {
   padding: 12px 16px;
@@ -41,6 +56,9 @@
   transition: background-color 0.3s, color 0.3s;
 }
 
+
+
+
 .sidebar li a {
   display: block;
   color: inherit;
@@ -49,26 +67,42 @@
   font-size: 16px;
 }
 
+
+
+
 .sidebar li:hover {
   background-color: #76f6ff;
   color: #000;
 }
+
+
+
 
 .sidebar li.active {
   background-color: #76f6ff;
   color: #000;
 }
 
+
+
+
 .sidebar li.active a {
   font-weight: 700;
   font-size: 18px;
 }
 
+
+
+
 .main-content {
   flex-grow: 1;
   padding: 40px;
   overflow-y: auto;
+  padding-bottom: 0px;
 }
+
+
+
 
 .main-title {
   font-size: 24px;
@@ -76,6 +110,9 @@
   color: #76f6ff;
   text-align: center;
 }
+
+
+
 
 .trends-table {
   width: 100%;
@@ -86,6 +123,9 @@
   margin-bottom: 40px;
   table-layout: fixed; /* Permite controlar el ancho de las columnas */
 }
+
+
+
 
 .trends-table th,
 .trends-table td {
@@ -100,6 +140,9 @@
   vertical-align: top;
 }
 
+
+
+
 /* ===== ANCHO DE COLUMNAS ESPECÍFICAS ===== */
 /* Columna 1: Info */
 .trends-table th:nth-child(1),
@@ -107,11 +150,17 @@
   width: 60px;
 }
 
+
+
+
 /* Columna 2: Título del Trend */
 .trends-table th:nth-child(2),
 .trends-table td:nth-child(2) {
   width: 25%;
 }
+
+
+
 
 /* Columna 3: Link del Trend */
 .trends-table th:nth-child(3),
@@ -119,11 +168,17 @@
   width: 20%;
 }
 
+
+
+
 /* Columna 4: Nombre Newsletter Relacionado */
 .trends-table th:nth-child(4),
 .trends-table td:nth-child(4) {
   width: 20%;
 }
+
+
+
 
 /* Columna 5: Fecha Relación */
 .trends-table th:nth-child(5),
@@ -131,17 +186,26 @@
   width: 10%;
 }
 
+
+
+
 /* Columna 6: Archivar */
 .trends-table th:nth-child(6),
 .trends-table td:nth-child(6) {
   width: 80px;
 }
 
+
+
+
 /* Columna 7: Eliminar */
 .trends-table th:nth-child(7),
 .trends-table td:nth-child(7) {
   width: 80px;
 }
+
+
+
 
 /* ===== ESTILOS PARA COLUMNAS ESPECÍFICAS ===== */
 /* Columna del título del trend - permitir wrap del texto */
@@ -151,10 +215,16 @@
   line-height: 1.4;
 }
 
+
+
+
 /* Columna del link - mostrar URL completa en hover */
 .trends-table td:nth-child(3) {
   position: relative;
 }
+
+
+
 
 .trends-table td:nth-child(3) a {
   display: block;
@@ -164,12 +234,18 @@
   line-height: 1.4;
 }
 
+
+
+
 .trends-table td:nth-child(3) a:hover {
   background-color: #1c1c1e;
   padding: 8px;
   border-radius: 4px;
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
+
+
+
 
 /* Todas las celdas permiten wrap del texto */
 .trends-table td {
@@ -179,9 +255,15 @@
   max-height: none;
 }
 
+
+
+
 .trends-table thead {
   background-color: #1c1c1e;
 }
+
+
+
 
 .status {
   padding: 4px 10px;
@@ -189,15 +271,24 @@
   font-size: 12px;
 }
 
+
+
+
 .status.published {
   background-color: #00ff99;
   color: #000;
 }
 
+
+
+
 .status.not-published {
   background-color: #ff4c4c;
   color: #000;
 }
+
+
+
 
 .delete-btn {
   background: none;
@@ -206,6 +297,9 @@
   font-size: 16px;
   cursor: pointer;
 }
+
+
+
 
 .archive-btn {
   background: none;
@@ -216,19 +310,37 @@
   transition: transform 0.2s ease;
 }
 
+
+
+
 .archive-btn:hover {
   transform: scale(1.1);
 }
 
+
+
+
 .footer {
   text-align: center;
   margin-top: 40px;
+  position: sticky;
+  bottom: 0;
+  background: #1a1a1d;
+  padding: 12px 0 16px 0;
+  border-top: 1px solid #333;
+  z-index: 5;
 }
+
+
+
 
 .footer p {
   font-weight: bold;
   margin-bottom: 10px;
 }
+
+
+
 
 .input-wrapper {
   display: flex;
@@ -237,9 +349,13 @@
   background-color: #2a2a2e;
   border-radius: 20px;
   padding: 8px 12px;
-  width: 400px;
+  width: min(720px, 90%);
   margin: 0 auto;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.45);
 }
+
+
+
 
 .input-wrapper input {
   flex-grow: 1;
@@ -251,6 +367,9 @@
   outline: none;
 }
 
+
+
+
 .input-wrapper button {
   background: none;
   border: none;
@@ -258,6 +377,9 @@
   font-size: 20px;
   cursor: pointer;
 }
+
+
+
 
 .logout-btn {
   margin-top: auto;
@@ -273,14 +395,20 @@
   transition: color 0.3s;
 }
 
+
+
+
 .logout-btn:hover {
   color: #4a9da3;
   background: none;
 }
 
+
+
+
 .info-btn-outline {
   background: transparent;      
-  border: 2px solid #76f6ff; 
+  border: 2px solid #76f6ff;
   color: #76f6ff;
   padding: 4px 8px;
   border-radius: 6px;
@@ -290,15 +418,24 @@
   height: 32px;
 }
 
+
+
+
 .info-btn-outline:hover {
   background-color: #76f6ff4b;
   color: #000;
 }
 
+
+
+
 .info-btn-outline img {
   max-width: 20px;
   max-height: 20px;
 }
+
+
+
 
 /* Estilos para el header con indicador de conexión */
 .header-section {
@@ -310,6 +447,9 @@
   gap: 1rem;
 }
 
+
+
+
 .main-title {
   text-align: left;
   margin-bottom: 0;
@@ -317,6 +457,9 @@
   font-size: 2.5rem;
   font-weight: bold;
 }
+
+
+
 
 .connection-status {
   display: flex;
@@ -328,9 +471,15 @@
   border: 1px solid #444;
 }
 
+
+
+
 .status-indicator {
   font-size: 1.2rem;
 }
+
+
+
 
 .status-text {
   font-size: 0.9rem;
@@ -338,15 +487,24 @@
   font-weight: 500;
 }
 
+
+
+
 .status-indicator.connected {
   animation: pulse 2s infinite;
 }
+
+
+
 
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.7; }
   100% { opacity: 1; }
 }
+
+
+
 
 .processing-indicator {
   display: flex;
@@ -361,16 +519,30 @@
   animation: slideIn 0.3s ease-in;
 }
 
+
+
+
 .spinner {
   animation: spin 1s linear infinite;
 }
+
+
+
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
+
+
+
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+
+
+
