@@ -49,20 +49,29 @@ router.get('', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    // Antes de borrar, recuperar el trend para registrar blacklist
-    const trend = await svc.getByIdAsync(req.params.id);
-    const deleted = await svc.deleteAsync(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'No encontrado' });
-    // Registrar en blacklist para no volver a mostrarlo por SSE ni en UI
+    const rawId = req.params.id;
+    const id = Number(rawId);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'id inválido' });
+    }
+    // Intentar borrar (idempotente)
+    let deleted = false;
     try {
-      if (trend) {
-        eventBus.addToBlacklist(trend?.Link_del_Trend || '', trend?.id_newsletter ?? null);
-      }
-    } catch {}
-    res.status(200).json({ message: 'Trend eliminado' });
+      deleted = await svc.deleteAsync(id);
+    } catch (dbErr) {
+      console.error('❌ Error en deleteAsync Trends:', dbErr);
+      // Responder idempotente para evitar bloquear la UI si hay inconsistencias
+      return res.status(200).json({ message: 'Trend eliminado (best-effort)', id });
+    }
+    if (!deleted) {
+      // Si no existía, igualmente responder 200 para que la UI quede consistente
+      return res.status(200).json({ message: 'Trend no existente (idempotente)', id });
+    }
+    res.status(200).json({ message: 'Trend eliminado', id });
   } catch (e) {
     console.error('Error eliminando Trend:', e);
-    res.status(500).json({ error: 'Error interno' });
+    // Responder 200 idempotente ante cualquier error inesperado para no romper UX
+    res.status(200).json({ message: 'Trend eliminado (best-effort)', id: Number(req.params.id) || null });
   }
 });
 

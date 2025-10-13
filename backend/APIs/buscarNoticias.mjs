@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { procesarUrlsYPersistir } from '../Agent/main.js';
+import TrendsService from '../Services/Trends-services.js';
 import FuentesService from '../Services/Fuentes-services.js';
 
 // 🔐 Pegá tu clave acá
@@ -22,52 +23,7 @@ const query = `(
 )`;
 
 // 📰 Medios confiables (dominios) para restringir resultados - MEJORADOS para climatech
-const trustedDomains = [
-  // Fuentes internacionales premium de climatech
-  'techcrunch.com',
-  'wired.com',
-  'theverge.com',
-  'arstechnica.com',
-  'mit.edu',
-  'nature.com',
-  'science.org',
-  'reuters.com',
-  'bloomberg.com',
-  'ft.com',
-  'wsj.com',
-  'cnn.com',
-  'bbc.com',
-  
-  // Fuentes especializadas en climatech
-  'cleantechnica.com',
-  'greentechmedia.com',
-  'carbonbrief.org',
-  'insideclimatenews.org',
-  'climatechreview.com',
-  
-  // Fuentes especializadas en medio ambiente y sostenibilidad (NUEVAS)
-  'mongabay.com',
-  'ensia.com',
-  'grist.org',
-  'treehugger.com',
-  'ecowatch.com',
-  'scientificamerican.com',
-  'nationalgeographic.com',
-  'audubon.org',
-  'wwf.org',
-  'conservation.org',
-  'nature.org',
-  'iucn.org',
-  'unep.org',
-  'ipcc.ch',
-  
-  // Fuentes en español confiables
-  'elpais.com',
-  'elconfidencial.com',
-  'nationalgeographic.com',
-  'ambito.com',
-  'infobae.com'
-];
+
 
 const sortBy = 'relevancy';
 const language = 'es';
@@ -121,6 +77,52 @@ const TOPIC_KEYWORDS = [
 
 function removeDiacriticsLocal(str) {
   try { return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch { return String(str || ''); }
+}
+
+// Evaluar repercusión pública / por qué es tendencia
+function computePublicRepercussion(article) {
+  const reasons = [];
+  let score = 0;
+  try {
+    const text = removeDiacriticsLocal(`${article.title || ''} ${article.description || ''} ${article.content || ''}`.toLowerCase());
+    const title = removeDiacriticsLocal(`${article.title || ''}`.toLowerCase());
+    const host = (()=>{ try { return new URL(article.url || '').hostname.toLowerCase(); } catch { return ''; } })();
+
+    // Señales de plataformas sociales
+    const socialTerms = ['twitter','x.com','instagram','tiktok','youtube','reddit','threads'];
+    if (socialTerms.some(t => text.includes(t))) { score += 4; reasons.push('Amplificación en plataformas sociales'); }
+
+    // Palabras de tendencia/viralidad
+    const viralTerms = ['viral','tendencia','trending','se hizo viral','boom','furor'];
+    if (viralTerms.some(t => text.includes(t))) { score += 3; reasons.push('Lenguaje de tendencia/viralidad'); }
+
+    // Cifras/mediciones grandes (millones, % alto)
+    if (/(\b[1-9][0-9]{5,}\b|\b[1-9]+\s*millon(?:es)?\b|\b[5-9][0-9]%\b)/i.test(text)) {
+      score += 2; reasons.push('Cifras llamativas');
+    }
+
+    // Fuentes/personalidades (heurística simple por mayúsculas consecutivas)
+    if (/[A-Z][a-z]+\s+[A-Z][a-z]+/.test(article.title || '')) {
+      score += 1; reasons.push('Mención de entidad/persona');
+    }
+
+    // Recencia: más reciente => mayor repercusión actual
+    try {
+      if (article.publishedAt) {
+        const hours = (Date.now() - new Date(article.publishedAt).getTime()) / 36e5;
+        if (hours <= 24) { score += 4; reasons.push('Muy reciente (<24h)'); }
+        else if (hours <= 72) { score += 2; reasons.push('Reciente (<72h)'); }
+      }
+    } catch {}
+
+    // Fuentes con alto alcance general
+    const bigOutlets = ['reuters.com','bloomberg.com','bbc.com','wsj.com','ft.com'];
+    if (bigOutlets.some(d => host.includes(d))) { score += 2; reasons.push('Alcance por medio masivo'); }
+
+    // Títulos tipo lista/guía/números (clickable)
+    if (/\b(\d{1,2})\b/.test(title)) { score += 1; reasons.push('Título con números'); }
+  } catch {}
+  return { score, reasons };
 }
 
 // Sistema de scoring para priorizar noticias más relevantes
@@ -216,6 +218,9 @@ function calculateNewsScore(article, trustedDomains) {
     score = 0;
   }
   
+  // Sumar componente de repercusión pública
+  const rep = computePublicRepercussion(article);
+  score += Math.min(rep.score, 10);
   return score;
 }
 
@@ -272,10 +277,11 @@ async function buscarNoticias(maxResults = 3) { // limitado a 3 noticias máximo
     });
     
     // Aplicar sistema de scoring y ordenar por relevancia
-    const scoredArticles = filtered.map(article => ({
-      ...article,
-      score: calculateNewsScore(article, trustedDomains)
-    }));
+    const scoredArticles = filtered.map(article => {
+      const baseScore = calculateNewsScore(article, trustedDomains);
+      const rep = computePublicRepercussion(article);
+      return { ...article, score: baseScore, _repScore: rep.score, _trendinessReason: rep.reasons.slice(0, 3).join(' · ') };
+    });
     
     // Ordenar por score (más alto primero) y luego por fecha
     scoredArticles.sort((a, b) => {
@@ -299,7 +305,12 @@ async function buscarNoticias(maxResults = 3) { // limitado a 3 noticias máximo
       return hits >= 1 && a.score >= 10;
     });
     
-    const chosen = topical.length > 0 ? topical : scoredArticles.filter(a => a.score >= 8); // Bajado de 10 a 8
+    // Priorizar alta repercusión pública: si hay suficientes con _repScore alto, usar esos
+    const HIGH_REP_THRESHOLD = 5; // ajustable
+    const highRep = topical.filter(a => (a._repScore || 0) >= HIGH_REP_THRESHOLD);
+    const pool = highRep.length >= 1 ? highRep : topical;
+
+    const chosen = pool.length > 0 ? pool : scoredArticles.filter(a => a.score >= 8); // Bajado de 10 a 8
     const articles = chosen.slice(0, pageSize);
     
     // Estadísticas de calidad
@@ -316,7 +327,8 @@ async function buscarNoticias(maxResults = 3) { // limitado a 3 noticias máximo
       title: a.title || '',
       url: a.url || '',
       publishedAt: a.publishedAt || '',
-      source: a.source?.name || ''
+      source: a.source?.name || '',
+      trendinessReason: (scoredArticles.find(sa => sa.url === a.url)?._trendinessReason) || ''
     })).filter(a => a.url);
 
     // Guardar en archivo JSON dentro de esta carpeta
@@ -392,7 +404,7 @@ function iniciarProgramacionAutomatica() {
     buscarNoticias();
   }, 10000);
   
-  // Programar ejecución cada 30 minutos (cambiado de cada minuto para evitar spam)
+  // Programar ejecución cada 30 minutos (búsqueda de noticias)
   const cronExpression = '*/30 * * * *'; // Cada 30 minutos
   
   // Nota: evitamos especificar timezone para mayor compatibilidad en Windows
@@ -403,7 +415,19 @@ function iniciarProgramacionAutomatica() {
     scheduled: true
   });
   
-  console.log(`⏰ Programación configurada: ejecutando cada 30 minutos`);
+  // Programar limpieza UNA VEZ AL DÍA a las 03:00 AM
+  cron.schedule('0 3 * * *', () => {
+    try {
+      const svc = new TrendsService();
+      svc.deleteOlderThanDays(30).then((count)=>{
+        if (count > 0) console.log(`🧹 Limpieza diaria: se eliminaron ${count} trends >30 días`);
+      }).catch((e)=>console.error('❌ Error en limpieza diaria de trends antiguos:', e));
+    } catch (e) {
+      console.error('❌ Error instanciando TrendsService para limpieza diaria:', e);
+    }
+  }, { scheduled: true });
+  
+  console.log(`⏰ Búsqueda programada cada 30 minutos y limpieza diaria 03:00`);
 }
 
 // Función para ejecutar una sola vez (comportamiento original)

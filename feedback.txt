@@ -1,0 +1,55 @@
+Implementé el enfoque A+B solicitado:
+A) Reentrenamiento incremental ligero por similitud:
+     - FeedbackService.getNegativePairExamples: obtiene pares noticia↔newsletter rechazados.
+     - Agent/main.js: antes de cada comparación con un newsletter, calcula embeddings y aplica una penalización al score si la propuesta es muy similar a ejemplos rechazados recientes (sin bloquear URLs ni penalizar dominios).
+B) Refuerzo simbólico:
+     - Ya está inyectando “razones frecuentes” de negativos en el prompt para que el modelo evite falsos positivos de ese tipo.
+     - Cómo ayuda sin requerir repetir “exactos” temas:
+La penalización por similitud captura la “forma” de los errores previos (títulos/resúmenes parecidos), no solo palabras o temas idénticos.
+El contexto de razones comunes eleva el umbral de aceptación en escenarios ambiguos, reduciendo falsos positivos en nuevas combinaciones temáticas.
+
+3. Tres estrategias posibles
+A. Feedback almacenado y reentrenamiento incremental
+
+Cada vez que el usuario elimina una relación, se guarda un registro con:
+
+La noticia.
+
+El newsletter relacionado.
+
+El tipo de error o el motivo del feedback negativo (si se puede).
+
+Periódicamente, se entrena o reajusta un modelo propio (por ejemplo, un embedding model o un clasificador supervisado) con los ejemplos correctos y los incorrectos.
+
+Ese modelo ajustado se usa como filtro previo o peso adicional para ayudar al agente a decidir qué relaciones son más probables antes de preguntar a ChatGPT.
+
+🧩 Ejemplo técnico:
+
+Usan OpenAI Embeddings para calcular similitud entre texto de noticia y newsletter.
+
+Guardan ejemplos rechazados en una base de datos.
+
+Cuando una nueva relación se evalúa, el sistema compara con esos ejemplos rechazados y penaliza similitudes con casos previos.
+
+B. Feedback como refuerzo simbólico
+
+Si el modelo no puede entrenarse, pueden hacerlo razonar mejor usando un "sistema de reflexión":
+
+Cuando un usuario da feedback negativo, se guarda esa instancia.
+
+Luego, antes de hacer una nueva relación, se le pasa al agente un contexto con ejemplos anteriores, por ejemplo:
+
+“Evita relacionar noticias sobre energías fósiles con newsletters sobre energía solar. Antes cometiste ese error.”
+
+Esto hace que el agente “piense” mejor a partir de sus errores sin necesitar aprendizaje automático real.
+👉 Esto se llama prompt-based memory o contextual reinforcement.
+
+4. Qué combinación conviene
+
+Lo más eficaz y práctico hoy sería una mezcla de A y B:
+
+Guardan el feedback en una base (con etiquetas positivas/negativas).
+
+Ajustan el cálculo de similitud o afinidad según ese feedback.
+
+Pasan al agente el contexto de errores previos para que razone mejor.

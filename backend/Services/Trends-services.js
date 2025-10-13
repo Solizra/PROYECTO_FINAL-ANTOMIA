@@ -22,6 +22,10 @@ export default class TrendsService {
     return await this.repo.deleteAsync(id);
   }
   
+  async deleteOlderThanDays(days = 30) {
+    return await this.repo.deleteOlderThanDays(days);
+  }
+  
   
 }
 

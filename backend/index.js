@@ -7,6 +7,7 @@ import path from 'path';
 import NewsletterRouter from './Controllers/Newsletter-controller.js'
 import TrendsRouter from './Controllers/Trends-controller.js'
 import FuentesRouter from './Controllers/Fuentes-controller.js'
+import FeedbackRouter from './Controllers/Feedback-controller.js'
 import { analizarNoticiaEstructurada } from './Agent/main.js';
 import { iniciarProgramacionAutomatica } from './APIs/buscarNoticias.mjs';
 import eventBus from './EventBus.js';
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use('/api/Newsletter', NewsletterRouter); // http://localhost:3000/api/Newsletter
 app.use('/api/Trends', TrendsRouter); // http://localhost:3000/api/Trends
 app.use('/api/Fuentes', FuentesRouter); // http://localhost:3000/api/Fuentes
+app.use('/api/Feedback', FeedbackRouter); // http://localhost:3000/api/Feedback
 
 // Endpoint para obtener las últimas URLs de noticias guardadas por el scheduler
 app.get('/api/news/latest', (req, res) => {

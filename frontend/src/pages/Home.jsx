@@ -16,6 +16,18 @@ function Home() {
   const [sseConnected, setSseConnected] = useState(false);
   const [procesandoNoticias, setProcesandoNoticias] = useState(false);
   const [trendsCreados, setTrendsCreados] = useState(0);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [selectedReason, setSelectedReason] = useState('bad_relation');
+
+  const deleteReasons = [
+    { value: 'bad_relation', label: 'Baja calidad de relación' },
+    { value: 'api_bad_news', label: 'Mala noticia traída de la API' },
+    { value: 'off_topic', label: 'Fuera de tema / No es climatech' },
+    { value: 'duplicate', label: 'Duplicado' },
+    { value: 'broken_link', label: 'Link roto o inaccesible' },
+    { value: 'other', label: 'Otra razón' }
+  ];
 
   const sortByDateDesc = (items) => {
     const parse = (v) => {
@@ -338,7 +350,7 @@ function Home() {
     return () => { isMounted = false; clearInterval(intervalId); };
   }, []);
 
-  const handleArchive = (trend) => {
+  const handleArchive = async (trend) => {
     console.log('📁 Archivando trend:', trend);
     
     // Obtener archivados existentes
@@ -347,7 +359,7 @@ function Home() {
     // Agregar el nuevo trend archivado
     const trendArchivado = {
       ...trend,
-      tipo: 'trend', // Agregar explícitamente el tipo
+      tipo: 'trend',
       fechaArchivado: new Date().toISOString(),
       estado: 'archivado'
     };
@@ -358,40 +370,77 @@ function Home() {
     // Remover de la tabla de trends
     setTrends(prev => prev.filter(t => t.id !== trend.id));
     
+    // Enviar feedback positivo al backend
+    try {
+      await fetch('http://localhost:3000/api/Feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trendId: trend.id,
+          action: 'archive',
+          reason: 'confirmed_correct',
+          feedback: 'positive',
+          trendData: trend,
+          timestamp: new Date().toISOString()
+        })
+      });
+    } catch (e) {
+      console.warn('⚠️ No se pudo enviar feedback de archivo:', e);
+    }
+    
     // Mostrar mensaje de éxito
     setSuccess('✅ Trend archivado correctamente');
     setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleDelete = async (id) => {
-    console.log('🗑️ Intentando eliminar trend con ID:', id);
-    
+  const confirmDeleteWithReason = async () => {
+    if (!deleteTarget) { setShowDeleteModal(false); return; }
+    const id = deleteTarget.id;
+    const trendToRemove = deleteTarget;
+
     // Optimista: quitar de UI
-    setTrends((prev) => {
-      const filtered = prev.filter((trend) => trend.id !== id);
-      console.log(`✅ Trend eliminado de UI. Total antes: ${prev.length}, después: ${filtered.length}`);
-      return filtered;
-    });
-    
-    // Si es un id válido (número), intentar borrar en backend
+    setTrends((prev) => prev.filter((trend) => trend.id !== id));
+
+    // Enviar feedback negativo al backend
+    try {
+      await fetch('http://localhost:3000/api/Feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trendId: id,
+          action: 'delete',
+          reason: selectedReason,
+          feedback: 'negative',
+          trendData: trendToRemove,
+          timestamp: new Date().toISOString()
+        })
+      });
+    } catch (e) {
+      console.warn('⚠️ No se pudo enviar feedback de borrado:', e);
+    }
+
+    // Borrar en backend
     if (id !== undefined && id !== null && !isNaN(Number(id))) {
       try {
-        console.log(`🌐 Enviando DELETE a: http://localhost:3000/api/Trends/${id}`);
         const res = await fetch(`http://localhost:3000/api/Trends/${id}`, { method: 'DELETE' });
-        
-        if (res.ok) {
-          console.log('✅ Trend eliminado exitosamente del backend');
-        } else {
-          console.error('❌ Error al borrar trend en backend. Status:', res.status);
+        if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
-          console.error('Error details:', errorData);
+          console.error('❌ Error al borrar trend en backend', res.status, errorData);
         }
       } catch (e) {
         console.error('❌ Error de conexión al eliminar trend:', e);
       }
-    } else {
-      console.warn('⚠️ ID inválido para eliminar:', id);
     }
+
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+    setSelectedReason('bad_relation');
+  };
+
+  const openDeleteModal = (trend) => {
+    setDeleteTarget(trend);
+    setSelectedReason('bad_relation');
+    setShowDeleteModal(true);
   };
 
   const analizar = async () => {
@@ -569,7 +618,7 @@ function Home() {
                   <button
                     type="button"
                     className="delete-btn"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(trend.id); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDeleteModal(trend); }}
                   >
                     🗙
                   </button>
@@ -628,6 +677,26 @@ function Home() {
           )}
         </div>
       </main>
+
+      {showDeleteModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#2a2a2e', padding: 20, borderRadius: 8, width: 'min(480px, 90vw)', color: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Eliminar trend</h3>
+            <p style={{ marginTop: 0, marginBottom: 12 }}>Selecciona la razón para eliminar este trend. Esto ayuda a mejorar la IA:</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              <select value={selectedReason} onChange={(e) => setSelectedReason(e.target.value)} style={{ padding: '8px 10px', background: '#1f1f23', color: '#fff', border: '1px solid #3a3a3f', borderRadius: 6 }}>
+                {deleteReasons.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} style={{ padding: '8px 12px', background: '#3a3a3f', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmDeleteWithReason} style={{ padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

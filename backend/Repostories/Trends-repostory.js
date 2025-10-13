@@ -7,6 +7,30 @@ export default class TrendsRepository {
     const client = new Client(DBConfig);
     try {
       await client.connect();
+      // Normalizar URL para evitar duplicados por tracking (utm, fbclid, etc.)
+      const normalizeLink = (url) => {
+        try {
+          const u = new URL(String(url || '').trim());
+          // borrar parámetros de tracking comunes
+          const params = u.searchParams;
+          const toDelete = [];
+          params.forEach((_, k) => {
+            const kLow = k.toLowerCase();
+            if (kLow.startsWith('utm_') || kLow === 'fbclid' || kLow === 'gclid' || kLow === 'ref' || kLow === 'source' || kLow === 'mc_cid' || kLow === 'mc_eid') {
+              toDelete.push(k);
+            }
+          });
+          toDelete.forEach(k => u.searchParams.delete(k));
+          u.hash = '';
+          // path sin slash final
+          if (u.pathname.endsWith('/') && u.pathname.length > 1) {
+            u.pathname = u.pathname.replace(/\/+$/, '');
+          }
+          return u.toString();
+        } catch {
+          return String(url || '').trim();
+        }
+      };
       // Normalización y coerción de payload para evitar valores incorrectos en BDD
       const coerceBoolean = (v) => {
         if (typeof v === 'boolean') return v;
@@ -34,7 +58,7 @@ export default class TrendsRepository {
       const clean = {
         id_newsletter: coerceIntOrNull(record.id_newsletter),
         Título_del_Trend: safeText(record.Título_del_Trend),
-        Link_del_Trend: safeText(record.Link_del_Trend),
+        Link_del_Trend: normalizeLink(safeText(record.Link_del_Trend)),
         Nombre_Newsletter_Relacionado: safeText(record.Nombre_Newsletter_Relacionado),
         Fecha_Relación: safeDateISO(record.Fecha_Relación),
         Relacionado: coerceBoolean(record.Relacionado),
@@ -85,6 +109,34 @@ export default class TrendsRepository {
         }
       } catch (dupErr) {
         console.error('Error comprobando duplicados en Trends:', dupErr);
+      }
+
+      // Comprobación adicional: evitar recrear la misma noticia (mismo link normalizado) en los últimos 10 días
+      try {
+        const recentSql = `
+          SELECT "id", "Link_del_Trend", "id_newsletter", "Nombre_Newsletter_Relacionado", "Fecha_Relación", "fecha_creacion"
+          FROM "Trends"
+          WHERE "fecha_creacion" > NOW() - INTERVAL '10 days' OR "Fecha_Relación" > NOW() - INTERVAL '10 days'
+        `;
+        const recent = await client.query(recentSql);
+        const same = recent.rows.find(r => {
+          try {
+            const existingNorm = normalizeLink(r['Link_del_Trend']);
+            const sameLink = existingNorm.toLowerCase() === clean.Link_del_Trend.toLowerCase();
+            if (!sameLink) return false;
+            // mismas reglas de newsletter del check previo
+            const sameNewsletterId = (clean.id_newsletter != null) && (r['id_newsletter'] === clean.id_newsletter);
+            const sameNewsletterName = (clean.id_newsletter == null) && (clean.Nombre_Newsletter_Relacionado || '').trim() !== '' && (String(r['Nombre_Newsletter_Relacionado'] || '').trim().toLowerCase() === clean.Nombre_Newsletter_Relacionado.trim().toLowerCase());
+            const bothNullNewsletter = (clean.id_newsletter == null) && ((clean.Nombre_Newsletter_Relacionado || '').trim() === '') && (r['id_newsletter'] == null) && (String(r['Nombre_Newsletter_Relacionado'] || '').trim() === '');
+            return sameNewsletterId || sameNewsletterName || bothNullNewsletter;
+          } catch { return false; }
+        });
+        if (same) {
+          console.log('⛔ Repetición evitada (ventana 10 días) para link normalizado:', clean.Link_del_Trend);
+          return { id: same.id, duplicated: true };
+        }
+      } catch (e) {
+        console.error('Error comprobando repetición por ventana de 10 días:', e);
       }
       const sql = `
         INSERT INTO "Trends" (
@@ -177,6 +229,21 @@ export default class TrendsRepository {
       return result.rowCount > 0; // true si se borró, false si no existía
     } catch (err) {
       console.error('Error eliminando Trend:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  }
+  
+  async deleteOlderThanDays(days = 30) {
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const sql = `DELETE FROM "Trends" WHERE "fecha_creacion" < NOW() - INTERVAL '${Math.max(1, Number(days))} days' RETURNING "id";`;
+      const result = await client.query(sql);
+      return result.rowCount || 0;
+    } catch (err) {
+      console.error('Error eliminando Trends antiguos:', err);
       throw err;
     } finally {
       await client.end();

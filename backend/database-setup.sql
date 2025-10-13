@@ -80,6 +80,22 @@ CREATE INDEX IF NOT EXISTS idx_trends_fecha ON "Trends"("Fecha_Relación");
 CREATE INDEX IF NOT EXISTS idx_newsletter_titulo ON "Newsletter"("titulo");
 CREATE INDEX IF NOT EXISTS idx_fuentes_activa ON "Fuentes"("activa");
 
+-- Crear tabla Feedback para retroalimentación de la IA
+CREATE TABLE IF NOT EXISTS "Feedback" (
+    "id" SERIAL PRIMARY KEY,
+    "trendId" INTEGER,
+    "action" VARCHAR(50) NOT NULL, -- e.g., 'delete', 'archive'
+    "reason" TEXT,                 -- e.g., 'bad_relation', 'other'
+    "feedback" VARCHAR(50),        -- e.g., 'positive', 'negative'
+    "trendData" JSONB,             -- snapshot del trend
+    "timestamp" TIMESTAMP,         -- momento del evento en el front
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices útiles para consultas futuras
+CREATE INDEX IF NOT EXISTS idx_feedback_trendid ON "Feedback"("trendId");
+CREATE INDEX IF NOT EXISTS idx_feedback_action ON "Feedback"("action");
+
 -- Mostrar información de las tablas creadas
 \dt
 

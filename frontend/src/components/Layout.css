@@ -8,15 +8,16 @@
   
   /* ===== SIDEBAR ===== */
   .sidebar {
-    background-color: #1e1e2f;
+    background-color: #1a1a1d;
     color: white;
-    padding: 15px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     transition: all 0.3s ease;
     position: relative;
     min-width: fit-content;
+    border-right: 1px solid rgba(255,255,255,0.06);
   }
   
   .sidebar.expanded {
@@ -64,17 +65,15 @@
   }
   
   .toggle-sidebar-btn {
-    background: none;
-    border: none;
+    background: #2a2a2e;
+    border: 1px solid rgba(255,255,255,0.08);
     color: #76f6ff;
     cursor: pointer;
-    padding: 4px;
-    margin-top: 10px;
-    border-radius: 4px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 6px;
+    margin-top: 8px;
+    border-radius: 8px;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
     flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
   }
   
   .sidebar.collapsed .toggle-sidebar-btn {
@@ -83,11 +82,9 @@
   }
   
   .toggle-sidebar-btn:hover {
-    background: linear-gradient(135deg, #76f6ff 0%, #4a9da3 100%);
-    color: #000;
-    transform: scale(1.15) rotate(5deg);
-    box-shadow: 0 8px 25px rgba(118, 246, 255, 0.4);
-    border-radius: 6px;
+    background: #323238;
+    color: #76f6ff;
+    transform: translateY(-1px);
   }
   
   .sidebar nav {
@@ -120,45 +117,42 @@
   
   .sidebar nav ul li a {
     text-decoration: none;
-    color: white;
+    color: #cccccc;
     font-weight: 500;
-    padding: 8px 12px;
+    padding: 10px 14px;
     display: block;
-    border-radius: 6px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 8px;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
     position: relative;
-    overflow: hidden;
+    border-left: 3px solid transparent;
   }
   
   .sidebar nav ul li.active a {
-    color: #4cafef; /* resalta el link activo */
-    background-color: #4cafef20;
+    color: #2a2a2e;
+    
+    border-left-color: #76f6ff;
   }
   
   .sidebar nav ul li a:hover {
-    background: linear-gradient(135deg, #76f6ff 0%, #4a9da3 100%);
-    color: #000;
-    transform: translateX(8px) scale(1.05);
-    box-shadow: 0 8px 25px rgba(118, 246, 255, 0.4);
-    border-radius: 8px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+
+    color: #2a2a2e;
+    transform: translateX(4px);
+    border-left-color: #76f6ff;
   }
   
   /* ===== BOTÓN DE LOGOUT ===== */
   .logout-btn {
-    border: 2px solid #5cf4ff77;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #2a2a2e;
+    color: #ffffff;
+    padding: 10px 14px;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
     margin-top: auto;
     white-space: nowrap;
-    position: relative;
-    overflow: hidden;
   }
   
   .logout-btn.visible {
@@ -174,12 +168,9 @@
   }
   
   .logout-btn:hover {
-    background: linear-gradient(135deg, #76f6ff 0%, #4a9da3 100%);
-    color: #000;
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 25px rgba(118, 246, 255, 0.4);
-    border-color: #76f6ff;
-    font-weight: 600;
+    background: #323238;
+    color: #76f6ff;
+    transform: translateY(-1px);
   }
   
   /* ===== CONTENIDO PRINCIPAL ===== */

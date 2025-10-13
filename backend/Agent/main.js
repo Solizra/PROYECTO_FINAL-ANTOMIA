@@ -2,10 +2,13 @@
 
 import https from 'https';
 import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
 import * as cheerio from 'cheerio';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
 import TrendsService from '../Services/Trends-services.js';
+import FeedbackService from '../Services/Feedback-service.js';
 import eventBus from '../EventBus.js';
 
 import OpenAI from "openai";
@@ -33,6 +36,82 @@ const insecureClient = allowInsecureOpenAI ? client : new OpenAI({
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// -------------------- EMBEDDING CACHE (disco + memoria) --------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const EMBEDDING_CACHE_FILE = path.join(__dirname, 'embeddings-cache.json');
+let embeddingCache = new Map(); // key -> array<number>
+let saveTimeout = null;
+
+function simpleHash(text) {
+  try {
+    let h = 2166136261;
+    const s = String(text || '');
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+    }
+    return (h >>> 0).toString(16);
+  } catch {
+    return String(text || '').slice(0, 64);
+  }
+}
+
+function loadEmbeddingCache() {
+  try {
+    if (fs.existsSync(EMBEDDING_CACHE_FILE)) {
+      const raw = fs.readFileSync(EMBEDDING_CACHE_FILE, 'utf8');
+      const obj = raw ? JSON.parse(raw) : {};
+      embeddingCache = new Map(Object.entries(obj));
+    }
+  } catch (e) {
+    console.log('⚠️ No se pudo cargar caché de embeddings:', e?.message || e);
+    embeddingCache = new Map();
+  }
+}
+
+function scheduleSaveEmbeddingCache() {
+  try {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      try {
+        const obj = Object.fromEntries(embeddingCache);
+        fs.writeFileSync(EMBEDDING_CACHE_FILE, JSON.stringify(obj));
+      } catch (e) {
+        console.log('⚠️ No se pudo guardar caché de embeddings:', e?.message || e);
+      }
+    }, 500);
+  } catch {}
+}
+
+async function getEmbeddingCached(text) {
+  try {
+    if (!client) return null;
+    const key = simpleHash(text);
+    if (embeddingCache.has(key)) {
+      const arr = embeddingCache.get(key);
+      return Array.isArray(arr) ? arr : null;
+    }
+    const resp = await client.embeddings.create({ model: 'text-embedding-3-small', input: text });
+    const vec = resp?.data?.[0]?.embedding || null;
+    if (vec) {
+      embeddingCache.set(key, vec);
+      if (embeddingCache.size > 5000) {
+        // recorte simple: mantener últimos ~5000
+        const keys = [...embeddingCache.keys()];
+        const toDelete = keys.slice(0, Math.floor(keys.length * 0.2));
+        for (const k of toDelete) embeddingCache.delete(k);
+      }
+      scheduleSaveEmbeddingCache();
+    }
+    return vec;
+  } catch (e) {
+    return null;
+  }
+}
+
+loadEmbeddingCache();
 
 // Helper robusto para llamadas a Chat con reintentos y fallback a cliente inseguro
 async function chatCompletionJSON(messages, { model = "gpt-4o-mini", maxRetries = 3 } = {}) {
@@ -918,15 +997,64 @@ async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNotic
 
     console.log(`📊 [ANÁLISIS IA POR NOTICIA] Procesando ${newslettersFiltrados.length} newsletters filtrados (de ${newsletters.length} total) con IA para esta noticia...`);
 
+    // Embeddings: recopilar ejemplos negativos para penalización previa
+    let negExamples = [];
+    try {
+      const fbSvcTmp = new FeedbackService();
+      negExamples = await fbSvcTmp.getNegativePairExamples({ limit: 100 });
+    } catch {}
+    const negVecs = [];
+    try {
+      if (Array.isArray(negExamples) && negExamples.length > 0) {
+        const batch = [resumen, ...negExamples.slice(0, 20)];
+        for (let idx = 0; idx < batch.length; idx++) {
+          const vec = await getEmbeddingCached(batch[idx]);
+          if (idx > 0 && vec) negVecs.push(vec);
+        }
+      }
+    } catch (e) {
+      console.log('⚠️ Embeddings no disponibles, se continúa sin penalización previa');
+    }
+
+    const cosSim = (a, b) => {
+      if (!a || !b || a.length !== b.length) return 0;
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < a.length; i++) { dot += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
+      if (!na || !nb) return 0;
+      return dot / (Math.sqrt(na) * Math.sqrt(nb) + 1e-9);
+    };
+
     const relacionados = [];
     const noRelacionRazones = [];
     for (let i = 0; i < newslettersFiltrados.length; i++) {
       const nl = newslettersFiltrados[i];
       const textoDoc = `${nl.titulo || ''}\n\n${nl.Resumen || ''}`.trim();
-      const prompt = `Debes decidir si el resumen de una noticia está relacionado con el resumen de un newsletter. Responde SOLO con JSON válido con estas claves: relacionado (\"SI\" o \"NO\"), razon (máx 2 frases, breve), score (0-100, opcional).\n\nResumen de noticia:\n${resumen}\n\nNewsletter:\n${textoDoc}`;
+      // Incluir pistas del feedback negativo para ayudar a no repetir errores de relación
+      let feedbackHints = '';
+      try {
+        const { topReasons } = await (new FeedbackService()).getNegativeReasonsStats({ limit: 300 });
+        const razonesTop = (topReasons || []).slice(0, 3).map(r => r.reason).join(', ');
+        if (razonesTop) {
+          feedbackHints = `\n\nContexto histórico: Evita falsos positivos similares a razones previas: ${razonesTop}.`;
+        }
+      } catch {}
+
+      const prompt = `Debes decidir si el resumen de una noticia está relacionado con el resumen de un newsletter. Responde SOLO con JSON válido con estas claves: relacionado (\"SI\" o \"NO\"), razon (explicación específica y personalizada de 3 a 6 oraciones, mencionando entidades/temas/indicadores concretos y por qué encajan o no), score (0-100, opcional).${feedbackHints}\n\nResumen de noticia:\n${resumen}\n\nNewsletter:\n${textoDoc}`;
 
       try {
         console.log(`\n🧪 [EVALUACIÓN IA] Evaluando newsletter ${i + 1}/${newslettersFiltrados.length} para esta noticia: ${nl.titulo || 'Sin título'}`);
+        // Penalización previa por similitud con negativos
+        let prePenalty = 0;
+        if (negVecs.length) {
+          try {
+            const nlVec = await getEmbeddingCached(textoDoc);
+            if (nlVec) {
+              let maxSim = 0;
+              for (const nv of negVecs) { if (!nv) continue; maxSim = Math.max(maxSim, cosSim(nlVec, nv)); }
+              if (maxSim > 0.83) prePenalty = 12; else if (maxSim > 0.78) prePenalty = 8; else if (maxSim > 0.73) prePenalty = 4;
+            }
+          } catch {}
+        }
         const content = await chatCompletionJSON([
           { role: "system", content: "Responde solo con JSON válido. Ejemplo: {\\\"relacionado\\\":\\\"SI\\\",\\\"razon\\\":\\\"Comparten tema de energía solar\\\",\\\"score\\\":82}" },
           { role: "user", content: prompt }
@@ -934,7 +1062,8 @@ async function compararConNewslettersLocal(resumenNoticia, newsletters, urlNotic
         console.log(`🔎 Respuesta RAW del modelo: ${content}`);
         let parsed = null;
         try { parsed = JSON.parse(content); } catch { parsed = null; }
-        const score = Math.max(0, Math.min(100, Number(parsed?.score ?? 0)));
+        let score = Math.max(0, Math.min(100, Number(parsed?.score ?? 0)));
+        if (prePenalty > 0) score = Math.max(0, score - prePenalty);
         const razon = typeof parsed?.razon === 'string' ? parsed.razon : '';
         const relacionado = String(parsed?.relacionado || '').toUpperCase() === 'SI';
         if (relacionado) {
@@ -1181,6 +1310,7 @@ export async function procesarUrlsYPersistir(items = []) {
   console.log(`📋 Cada noticia será analizada por separado con filtrado de palabras clave + IA\n`);
 
   const trendsSvc = new TrendsService();
+  const feedbackSvc = new FeedbackService();
   const resultados = [];
 
   for (let i = 0; i < items.length; i++) {
@@ -1202,6 +1332,7 @@ export async function procesarUrlsYPersistir(items = []) {
     console.log(`🔗 URL: ${url}`);
 
     try {
+      // Nota: no saltamos la URL completa por feedback; solo controlamos a nivel relación más abajo
       console.log(`🔍 Analizando noticia: ${url}`);
       const resultado = await analizarNoticiaEstructurada(url);
       
@@ -1241,6 +1372,14 @@ export async function procesarUrlsYPersistir(items = []) {
         // Si hay newsletters relacionados, crear trends con esas relaciones
         for (const nl of relacionados) {
         try {
+            // Saltar relación specifica si hay feedback negativo previo para el par link|newsletter
+            try {
+              const skipPair = await feedbackSvc.hasNegativeForLinkOrPair({ trendLink: url, newsletterId: nl.id ?? null });
+              if (skipPair) {
+                console.log(`⛔ Feedback negativo previo para par link|newsletter → saltando relación con NL ${nl.id}`);
+                continue;
+              }
+            } catch {}
           const payload = {
               id_newsletter: nl.id ?? null,
               Título_del_Trend: resultado.titulo || tituloTrend,
