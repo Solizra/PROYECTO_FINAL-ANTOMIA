@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import NewsletterService from '../Services/Newsletter-services.js';
-import { analizarNoticiaEstructurada } from '../Agent/main.js';
+import { extraerContenidoNoticia, generarResumenIA } from '../Agent/main.js';
 import TrendsService from '../Services/Trends-services.js';
 const router = Router();
 const svc = new NewsletterService();
@@ -20,6 +20,40 @@ router.get('', async (req, res) => {
   }
 });
 
+router.put('/:id/resumen', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { Resumen } = req.body || {};
+    if (Resumen !== null && Resumen !== undefined && typeof Resumen !== 'string') {
+      return res.status(400).json({ error: '"Resumen" debe ser string o null' });
+    }
+    const updated = await svc.updateResumenByIdOrLinkAsync({ id, Resumen: Resumen ?? null });
+    if (!updated) return res.status(404).json({ error: 'Newsletter no encontrado' });
+    res.status(200).json({ message: '✅ Resumen actualizado', data: updated });
+  } catch (e) {
+    console.error('❌ Error actualizando resumen:', e);
+    res.status(500).json({ error: 'Error interno del servidor', details: e.message });
+  }
+});
+
+// Alternativa con query: PUT /api/Newsletter/resumen?id=123
+router.put('/resumen', async (req, res) => {
+  try {
+    const { id, link } = req.query || {};
+    const { Resumen } = req.body || {};
+    if (!id && !link) return res.status(400).json({ error: 'Parámetro "id" o "link" requerido' });
+    if (Resumen !== null && Resumen !== undefined && typeof Resumen !== 'string') {
+      return res.status(400).json({ error: '"Resumen" debe ser string o null' });
+    }
+    const updated = await svc.updateResumenByIdOrLinkAsync({ id, link, Resumen: Resumen ?? null });
+    if (!updated) return res.status(404).json({ error: 'Newsletter no encontrado' });
+    res.status(200).json({ message: '✅ Resumen actualizado', data: updated });
+  } catch (e) {
+    console.error('❌ Error actualizando resumen (query):', e);
+    res.status(500).json({ error: 'Error interno del servidor', details: e.message });
+  }
+});
+
 router.post('', async (req, res) => {
   try {
     const { link } = req.body || {};
@@ -35,7 +69,19 @@ router.post('', async (req, res) => {
     if (exists) {
       return res.status(409).json({ message: '⛔ El newsletter ya existe', data: exists });
     }
-    const created = await svc.createAsync({ link });
+    // Usar funciones ligeras del agente: extraer HTML y resumir (sin clasificación ni comparación)
+    let titulo = '';
+    let Resumen = '';
+    try {
+      const extraido = await extraerContenidoNoticia(link);
+      titulo = extraido?.titulo || '';
+      const contenido = extraido?.contenido || '';
+      Resumen = contenido ? await generarResumenIA(contenido) : '';
+    } catch (agentErr) {
+      console.warn('⚠️ No se pudo extraer título/resumen con funciones ligeras:', agentErr?.message || agentErr);
+    }
+
+    const created = await svc.createAsync({ link, titulo, Resumen });
     // Si el repositorio igualmente devuelve duplicated por carrera
     if (created && created.duplicated) {
       return res.status(409).json({ message: '⛔ El newsletter ya existe', data: created.data });
@@ -43,6 +89,39 @@ router.post('', async (req, res) => {
     return res.status(201).json({ message: '✅ Newsletter agregado', data: created });
   } catch (e) {
     console.error('❌ Error en Newsletter-controller.createAsync:', e);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: e.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ok = await svc.deleteAsync(id);
+    if (!ok) return res.status(404).json({ error: 'Newsletter no encontrado' });
+    return res.status(200).json({ message: '🗑️ Newsletter eliminado' });
+  } catch (e) {
+    console.error('❌ Error en Newsletter-controller.deleteAsync:', e);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: e.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.delete('', async (req, res) => {
+  try {
+    const { id, link } = req.query || {};
+    if (!id && !link) return res.status(400).json({ error: 'Parámetro "id" o "link" requerido' });
+    const ok = await svc.deleteByIdOrLink({ id, link });
+    if (!ok) return res.status(404).json({ error: 'Newsletter no encontrado' });
+    return res.status(200).json({ message: '🗑️ Newsletter eliminado' });
+  } catch (e) {
+    console.error('❌ Error en Newsletter-controller.deleteAsync (query):', e);
     res.status(500).json({ 
       error: 'Error interno del servidor',
       details: e.message,

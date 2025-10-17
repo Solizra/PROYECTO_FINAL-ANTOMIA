@@ -344,7 +344,7 @@ function hasAnyTerm(normText, termsSet) {
 }
 
 // Función para extraer contenido de noticias desde URLs
-async function extraerContenidoNoticia(url) {
+export async function extraerContenidoNoticia(url) {
   try {
     console.log(`🔗 Extrayendo contenido de: ${url}`);
     
@@ -557,8 +557,8 @@ async function extraerContenidoNoticia(url) {
       throw new Error('No se pudo extraer contenido útil de la página');
     }
 
-    // Unir párrafos y limitar longitud
-    contenido = parrafos.join('\n\n').slice(0, 4000);
+    // Unir párrafos (sin recortar para maximizar contexto)
+    contenido = parrafos.join('\n\n');
     
     console.log(`✅ Contenido extraído: ${contenido.length} caracteres`);
     console.log(`📝 Primeros 200 caracteres: "${contenido.substring(0, 200)}..."`);
@@ -578,7 +578,7 @@ async function extraerContenidoNoticia(url) {
 }
 
 // Función para generar resumen usando Chat Completions de OpenAI
-async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
+export async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
   try {
     console.log(`📝 Generando resumen inteligente de toda la noticia...`);
     
@@ -685,13 +685,7 @@ async function generarResumenIA(contenido) { //de donde sale el contenido?? ()
       }
     }
     
-    // Limitar longitud máxima razonable
-    if (resumen.length > 800) {
-      resumen = resumen.substring(0, 800).trim();
-      if (!resumen.endsWith('.')) {
-        resumen += '...';
-      }
-    }
+    // No limitar la longitud del resumen para evitar cortes
     
     console.log(`✅ Resumen inteligente generado: ${resumen.length} caracteres (mínimo 500)`);
     console.log(`📝 Resumen: "${resumen}"`);

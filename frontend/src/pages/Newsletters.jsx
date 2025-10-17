@@ -7,6 +7,10 @@ function Newsletters() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [activeItem, setActiveItem] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [draftResumen, setDraftResumen] = useState('');
 
   const cargar = async () => {
     try {
@@ -39,19 +43,43 @@ function Newsletters() {
       });
       const data = await res.json().catch(() => null);
       if (res.status === 409) {
-        setSuccess('⚠️ Ese newsletter ya existe');
+        setError('⚠️ Ese newsletter ya existe');
         setLink('');
         await cargar();
+        // mantener error visible más tiempo
         return;
       }
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'No se pudo agregar');
       setLink('');
-      setSuccess('✅ Newsletter agregado');
+      setSuccess('✅ Newsletter agregado correctamente');
       await cargar();
+      // auto-dismiss éxito
+      setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
       setError(e.message || 'Error agregando newsletter');
+      // mantener error visible por más tiempo
+      setTimeout(() => setError(''), 10000);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const eliminar = async (id) => {
+    setError(''); setSuccess('');
+    try {
+      const item = items.find(x => x.id === id);
+      const qs = new URLSearchParams();
+      if (id != null) qs.set('id', String(id));
+      if (item?.link) qs.set('link', item.link);
+      const res = await fetch(`http://localhost:3000/api/Newsletter?${qs.toString()}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && (data.error || data.message)) || 'No se pudo eliminar');
+      setSuccess('🗑️ Newsletter eliminado');
+      await cargar();
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (e) {
+      setError(e.message || 'Error eliminando newsletter');
+      setTimeout(() => setError(''), 10000);
     }
   };
 
@@ -83,6 +111,8 @@ function Newsletters() {
               <th>ID</th>
               <th>Link</th>
               <th>Título</th>
+              <th>Resumen</th>
+              <th>Eliminar</th>
             </tr>
           </thead>
           <tbody>
@@ -91,10 +121,134 @@ function Newsletters() {
                 <td>{n.id}</td>
                 <td>{n.link ? <a href={n.link} target="_blank" rel="noreferrer">{n.link}</a> : '—'}</td>
                 <td>{n.titulo || '—'}</td>
+                <td>
+                  <button
+                    className="info-btn-outline"
+                    style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    onClick={() => {
+                      setActiveItem(n);
+                      setDraftResumen(n.Resumen || '');
+                      setEditMode(false);
+                      setPanelOpen(true);
+                    }}
+                    title="Ver resumen"
+                  >Ver resumen</button>
+                </td>
+                <td>
+                  <button className="delete-btn" onClick={() => eliminar(n.id)} title="Eliminar">🗙</button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {panelOpen && activeItem && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ width: 'min(800px, 92vw)', maxHeight: '80vh', overflow: 'auto', background: '#2a2a2e', color: '#fff', borderRadius: 12, boxShadow: '0 20px 50px rgba(0,0,0,0.6)', padding: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <strong>Resumen del Newsletter #{activeItem.id}</strong>
+                <span style={{ color: '#aaa', fontSize: 12 }}>{activeItem.titulo || 'Sin título'}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  className="info-btn-outline"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    display: 'grid',
+                    placeItems: 'center',
+                    padding: 0,
+                    background: editMode ? '#3a3a3f' : 'transparent',
+                    borderColor: editMode ? '#5a5a60' : undefined
+                  }}
+                  onClick={() => {
+                    if (editMode) {
+                      // cancelar edición: descartar cambios
+                      setDraftResumen(activeItem?.Resumen || '');
+                      setEditMode(false);
+                    } else {
+                      setDraftResumen(activeItem?.Resumen || '');
+                      setEditMode(true);
+                    }
+                  }}
+                  title={editMode ? 'Cancelar edición' : 'Editar'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="#ddd"/>
+                    <path d="M20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" fill="#bbb"/>
+                  </svg>
+                </button>
+                <button
+                  className="delete-btn"
+                  style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', padding: 0 }}
+                  onClick={() => { setPanelOpen(false); setActiveItem(null); setEditMode(false); }}
+                  title="Cerrar"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M6 6l12 12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {!editMode ? (
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{draftResumen || '—'}</div>
+            ) : (
+              <div>
+                <textarea
+                  value={draftResumen}
+                  onChange={(e) => setDraftResumen(e.target.value)}
+                  rows={10}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    color: '#fff',
+                    border: 'none',
+                    outline: 'none',
+                    borderRadius: 8,
+                    padding: 0,
+                    fontSize: '14px',
+                    lineHeight: 1.6,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    maxHeight: '50vh',
+                    overflow: 'auto'
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                  <button
+                    className="info-btn-outline"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`http://localhost:3000/api/Newsletter/${activeItem.id}/resumen`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ Resumen: draftResumen || '' })
+                        });
+                        const data = await res.json().catch(() => null);
+                        if (!res.ok) throw new Error((data && (data.error || data.message)) || 'No se pudo actualizar');
+                        // reflejar en la tabla
+                        setItems(prev => prev.map(x => x.id === activeItem.id ? { ...x, Resumen: draftResumen || '' } : x));
+                        setActiveItem(prev => prev ? { ...prev, Resumen: draftResumen || '' } : prev);
+                        // recargar desde backend para asegurar persistencia
+                        await cargar();
+                        setSuccess('✅ Resumen actualizado');
+                        setTimeout(() => setSuccess(''), 4000);
+                        setEditMode(false);
+                      } catch (e) {
+                        setError(e.message || 'Error actualizando resumen');
+                        setTimeout(() => setError(''), 10000);
+                      }
+                    }}
+                  >Guardar</button>
+                </div>
+              </div>
+            )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

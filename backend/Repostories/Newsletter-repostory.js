@@ -78,7 +78,7 @@ export default class NewsletterRepository {
     }
   };
 
-  createAsync = async ({ link }) => {
+  createAsync = async ({ link, titulo, Resumen }) => {
     if (!link || typeof link !== 'string') {
       throw new Error('El campo "link" es obligatorio');
     }
@@ -87,23 +87,148 @@ export default class NewsletterRepository {
     try {
       await client.connect();
       // Verificar duplicado exacto antes de insertar
-      const existing = await client.query(
-        'SELECT id, link, "Resumen", titulo FROM "Newsletter" WHERE link = $1 LIMIT 1',
-        [link]
-      );
+      const existing = await client.query('SELECT id, link, "Resumen", titulo FROM "Newsletter" WHERE link = $1 LIMIT 1', [link]);
       if (existing.rows && existing.rows.length > 0) {
         return { duplicated: true, data: existing.rows[0] };
       }
       const sql = `
-        INSERT INTO "Newsletter" (link)
-        VALUES ($1)
+        INSERT INTO "Newsletter" (link, "Resumen", titulo)
+        VALUES ($1, $2, COALESCE($3, ''))
         RETURNING id, link, "Resumen", titulo
       `;
-      const params = [link];
+      const params = [link, Resumen || null, titulo || null];
       const result = await client.query(sql, params);
       return result.rows?.[0] || null;
     } catch (err) {
       console.error('Error al crear newsletter:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  deleteByIdAsync = async (id) => {
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      throw new Error('ID inválido');
+    }
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const res = await client.query('DELETE FROM "Newsletter" WHERE id = $1', [numericId]);
+      return res.rowCount > 0;
+    } catch (err) {
+      console.error('Error eliminando newsletter:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  deleteByLinkExact = async (link) => {
+    if (!link || typeof link !== 'string') {
+      throw new Error('Link inválido');
+    }
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const res = await client.query('DELETE FROM "Newsletter" WHERE link = $1', [link]);
+      return res.rowCount > 0;
+    } catch (err) {
+      console.error('Error eliminando newsletter por link:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  deleteByIdOrLink = async ({ id, link }) => {
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const where = [];
+      const params = [];
+      const numericId = Number(id);
+      if (Number.isInteger(numericId) && numericId > 0) {
+        where.push(`id = $${params.length + 1}`);
+        params.push(numericId);
+      }
+      if (typeof link === 'string' && link.trim()) {
+        where.push(`link = $${params.length + 1}`);
+        params.push(link.trim());
+      }
+      if (where.length === 0) {
+        throw new Error('Parámetros inválidos para borrar');
+      }
+      const sql = `DELETE FROM "Newsletter" WHERE ${where.join(' OR ')}`;
+      const res = await client.query(sql, params);
+      return res.rowCount > 0;
+    } catch (err) {
+      console.error('Error eliminando newsletter (id o link):', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  updateResumenByIdAsync = async (id, Resumen) => {
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      throw new Error('ID inválido');
+    }
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const sql = 'UPDATE "Newsletter" SET "Resumen" = $1 WHERE id = $2 RETURNING id, link, "Resumen", titulo';
+      const result = await client.query(sql, [Resumen ?? null, numericId]);
+      return result.rows?.[0] || null;
+    } catch (err) {
+      console.error('Error actualizando resumen de newsletter:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  updateResumenByLinkExactAsync = async (link, Resumen) => {
+    if (!link || typeof link !== 'string') {
+      throw new Error('Link inválido');
+    }
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const sql = 'UPDATE "Newsletter" SET "Resumen" = $1 WHERE link = $2 RETURNING id, link, "Resumen", titulo';
+      const result = await client.query(sql, [Resumen ?? null, link]);
+      return result.rows?.[0] || null;
+    } catch (err) {
+      console.error('Error actualizando resumen por link:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  updateResumenByIdOrLinkAsync = async ({ id, link, Resumen }) => {
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const numericId = Number(id);
+      const params = [];
+      let whereParts = [];
+      if (Number.isInteger(numericId) && numericId > 0) {
+        whereParts.push(`id = $${params.length + 2}`);
+        params.push(numericId);
+      }
+      if (typeof link === 'string' && link.trim()) {
+        whereParts.push(`link = $${params.length + 2}`);
+        params.push(link.trim());
+      }
+      if (whereParts.length === 0) return null;
+      const sql = `UPDATE "Newsletter" SET "Resumen" = $1 WHERE ${whereParts.join(' OR ')} RETURNING id, link, "Resumen", titulo`;
+      const result = await client.query(sql, [Resumen ?? null, ...params]);
+      return result.rows?.[0] || null;
+    } catch (err) {
+      console.error('Error actualizando resumen (id OR link):', err);
       throw err;
     } finally {
       await client.end();

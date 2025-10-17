@@ -28,13 +28,53 @@ export default class NewsletterService {
   createAsync = async (payload) => {
     try {
       const repo = new NewsletterRepostory();
-      const { link } = payload || {};
+      const { link, titulo, Resumen } = payload || {};
       if (!link || typeof link !== 'string') {
         throw new Error('Falta el campo "link"');
       }
-      return await repo.createAsync({ link });
+      return await repo.createAsync({ link, titulo, Resumen });
     } catch (error) {
       console.error('Error en NewsletterService.createAsync:', error);
+      throw error;
+    }
+  };
+
+  deleteAsync = async (id) => {
+    try {
+      const repo = new NewsletterRepostory();
+      return await repo.deleteByIdAsync(id);
+    } catch (error) {
+      console.error('Error en NewsletterService.deleteAsync:', error);
+      throw error;
+    }
+  };
+
+  deleteByIdOrLink = async ({ id, link }) => {
+    try {
+      const repo = new NewsletterRepostory();
+      return await repo.deleteByIdOrLink({ id, link });
+    } catch (error) {
+      console.error('Error en NewsletterService.deleteByIdOrLink:', error);
+      throw error;
+    }
+  };
+
+  updateResumenAsync = async (id, Resumen) => {
+    try {
+      const repo = new NewsletterRepostory();
+      return await repo.updateResumenByIdAsync(id, Resumen);
+    } catch (error) {
+      console.error('Error en NewsletterService.updateResumenAsync:', error);
+      throw error;
+    }
+  };
+
+  updateResumenByIdOrLinkAsync = async ({ id, link, Resumen }) => {
+    try {
+      const repo = new NewsletterRepostory();
+      return await repo.updateResumenByIdOrLinkAsync({ id, link, Resumen });
+    } catch (error) {
+      console.error('Error en NewsletterService.updateResumenByIdOrLinkAsync:', error);
       throw error;
     }
   };
