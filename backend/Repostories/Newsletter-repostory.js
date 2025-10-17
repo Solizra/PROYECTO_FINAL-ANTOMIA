@@ -58,6 +58,7 @@ export default class NewsletterRepository {
     return newsletters;
   };
 
+<<<<<<< HEAD
   createOrIgnoreAsync = async ({ link, Resumen, titulo }) => {
     const client = new Client(DBConfig);
     try {
@@ -78,6 +79,54 @@ export default class NewsletterRepository {
       return ins.rows && ins.rows[0] ? ins.rows[0] : null;
     } catch (err) {
       console.error('Error creando newsletter:', err);
+=======
+  existsByLinkExact = async (link) => {
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      const sql = `
+        SELECT id, link, "Resumen", titulo
+        FROM "Newsletter"
+        WHERE link = $1
+        LIMIT 1
+      `;
+      const result = await client.query(sql, [link]);
+      return result.rows?.[0] || null;
+    } catch (err) {
+      console.error('Error comprobando existencia de newsletter por link:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
+
+  createAsync = async ({ link }) => {
+    if (!link || typeof link !== 'string') {
+      throw new Error('El campo "link" es obligatorio');
+    }
+
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      // Verificar duplicado exacto antes de insertar
+      const existing = await client.query(
+        'SELECT id, link, "Resumen", titulo FROM "Newsletter" WHERE link = $1 LIMIT 1',
+        [link]
+      );
+      if (existing.rows && existing.rows.length > 0) {
+        return { duplicated: true, data: existing.rows[0] };
+      }
+      const sql = `
+        INSERT INTO "Newsletter" (link)
+        VALUES ($1)
+        RETURNING id, link, "Resumen", titulo
+      `;
+      const params = [link];
+      const result = await client.query(sql, params);
+      return result.rows?.[0] || null;
+    } catch (err) {
+      console.error('Error al crear newsletter:', err);
+>>>>>>> 9ab415b3329b87f23874367546435a5848e88e49
       throw err;
     } finally {
       await client.end();

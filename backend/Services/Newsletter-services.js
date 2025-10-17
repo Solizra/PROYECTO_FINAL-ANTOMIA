@@ -14,6 +14,7 @@ export default class NewsletterService {
     }
   };
 
+<<<<<<< HEAD
   createOrIgnoreAsync = async ({ link, Resumen, titulo }) => {
     try {
       const repo = new NewsletterRepostory();
@@ -24,6 +25,29 @@ export default class NewsletterService {
       return created;
     } catch (error) {
       console.error('Error en NewsletterService.createOrIgnoreAsync:', error);
+=======
+  existsByLink = async (link) => {
+    try {
+      const repo = new NewsletterRepostory();
+      if (!link || typeof link !== 'string') return null;
+      return await repo.existsByLinkExact(link);
+    } catch (error) {
+      console.error('Error en NewsletterService.existsByLink:', error);
+      throw error;
+    }
+  };
+
+  createAsync = async (payload) => {
+    try {
+      const repo = new NewsletterRepostory();
+      const { link } = payload || {};
+      if (!link || typeof link !== 'string') {
+        throw new Error('Falta el campo "link"');
+      }
+      return await repo.createAsync({ link });
+    } catch (error) {
+      console.error('Error en NewsletterService.createAsync:', error);
+>>>>>>> 9ab415b3329b87f23874367546435a5848e88e49
       throw error;
     }
   };
