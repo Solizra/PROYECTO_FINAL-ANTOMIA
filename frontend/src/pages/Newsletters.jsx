@@ -89,7 +89,7 @@ function Newsletters() {
     <div className="infotrend-container">
       <div className="infotrend-inner">
         <div className="infotrend-header">
-          <h1 className="infotrend-title">Newsletters</h1>
+          <h1 className="infotrend-title" style={{ fontSize: '2rem', fontWeight: 700 }}>Newsletters</h1>
         </div>
 
         <div className="fuentes-actions">
@@ -101,13 +101,11 @@ function Newsletters() {
             onKeyDown={(e) => { if (e.key === 'Enter') agregar(); }}
             disabled={loading}
           />
-          <button onClick={agregar} disabled={loading} style={{ minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <button onClick={agregar} disabled={loading} className="primary-btn btn-lg" style={{ minWidth: 140 }}>
             {loading ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
-                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
-                  </circle>
+                <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" className="spinner">
+                  <circle cx="25" cy="25" r="20" stroke="#fff" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4" />
                 </svg>
                 Cargando
               </span>
@@ -136,7 +134,7 @@ function Newsletters() {
                 <td>{n.titulo || '—'}</td>
                 <td>
                   <button
-                    className="info-btn-outline"
+                    className="primary-btn"
                     style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                     onClick={() => {
                       setActiveItem(n);
@@ -148,7 +146,11 @@ function Newsletters() {
                   >Ver resumen</button>
                 </td>
                 <td>
-                  <button className="delete-btn" onClick={() => eliminar(n.id)} title="Eliminar">🗙</button>
+                  <button className="delete-btn danger-btn" onClick={() => eliminar(n.id)} title="Eliminar" aria-label="Eliminar newsletter">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="#ff4c4c" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </button>
                 </td>
               </tr>
             ))}
@@ -249,7 +251,7 @@ function Newsletters() {
                 />
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
                   <button
-                    className="info-btn-outline"
+                    className="primary-btn"
                     onClick={async () => {
                       try {
                         const res = await fetch(`http://localhost:3000/api/Newsletter/${activeItem.id}/resumen`, {

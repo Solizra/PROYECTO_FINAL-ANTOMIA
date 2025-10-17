@@ -93,40 +93,21 @@ function Archivados() {
   return (
     <div className="archivados-container">
       <div className="archivados-header">
-        <h1>Elementos Archivados</h1>
+        <h1 style={{ fontSize: '2rem', fontWeight: 700 }}>Elementos Archivados</h1>
         <p>Gestiona y organiza tu contenido archivado</p>
       </div>
 
-      <div className="archivados-controls">
-        <div className="search-section">
+      <div className="archivados-controls" style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div className="search-section" style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
           <input
             type="text"
             placeholder="Buscar en archivados..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
+            style={{ flex: 1 }}
           />
-        </div>
-        <div className="debug-section">
-          <button 
-            onClick={() => {
-              console.log('🧹 Limpiando localStorage...');
-              localStorage.removeItem('archivados');
-              setArchivados([]);
-              alert('localStorage limpiado');
-            }}
-            style={{
-              padding: '0.5rem 1rem',
-              background: '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              marginLeft: '30px',
-            }}
-          >
-            🧹 Limpiar
-          </button>
+          <button className="primary-btn" style={{ minWidth: 110 }}>Buscar</button>
         </div>
       </div>
 
@@ -195,16 +176,16 @@ function Archivados() {
                 
                 <div className="archivado-actions">
                   <button
-                    className="restaurar-btn"
+                    className="primary-btn"
                     onClick={() => handleRestaurar(item.id)}
                   >
-                    🔄 Restaurar
+                    Restaurar
                   </button>
                   <button
-                    className="eliminar-btn"
+                    className="danger-btn"
                     onClick={() => handleEliminar(item.id)}
                   >
-                    🗑️ Eliminar
+                    Eliminar
                   </button>
                 </div>
               </div>
@@ -214,13 +195,9 @@ function Archivados() {
       </div>
 
       {filteredArchivados.length > 0 && (
-        <div className="bulk-actions">
-          <button className="bulk-restaurar-btn">
-            🔄 Restaurar Todos
-          </button>
-          <button className="bulk-eliminar-btn">
-            🗑️ Eliminar Todos
-          </button>
+        <div className="bulk-actions" style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 16 }}>
+          <button className="primary-btn btn-lg">Restaurar todos</button>
+          <button className="danger-btn btn-lg">Eliminar todos</button>
         </div>
       )}
     </div>

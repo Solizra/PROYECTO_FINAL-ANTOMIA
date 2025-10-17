@@ -68,7 +68,7 @@ function Fuentes() {
     <div className="infotrend-container">
       <div className="infotrend-inner">
         <div className="infotrend-header">
-          <h1 className="infotrend-title">Fuentes utilizadas por la IA</h1>
+          <h1 className="infotrend-title" style={{ fontSize: '2rem', fontWeight: 700 }}>Fuentes utilizadas por la IA</h1>
         </div>
 
         <div className="fuentes-actions">
@@ -88,13 +88,11 @@ function Fuentes() {
             onKeyDown={(e) => { if (e.key === 'Enter') agregarFuente(); }}
             disabled={loading}
           />
-          <button onClick={agregarFuente} disabled={loading} style={{ minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <button onClick={agregarFuente} disabled={loading} className="primary-btn btn-lg" style={{ minWidth: 140 }}>
             {loading ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
-                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
-                  </circle>
+                <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" className="spinner">
+                  <circle cx="25" cy="25" r="20" stroke="#fff" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4" />
                 </svg>
                 Cargando
               </span>
@@ -125,8 +123,10 @@ function Fuentes() {
                   </span>
                 </td>
                 <td>
-                  <button className="delete-btn" onClick={() => eliminarFuente(f.fuente)} title="Desactivar">
-                    🗙
+                  <button className="delete-btn danger-btn" onClick={() => eliminarFuente(f.fuente)} title="Desactivar" aria-label="Desactivar fuente">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="#ff4c4c" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
                   </button>
                 </td>
               </tr>

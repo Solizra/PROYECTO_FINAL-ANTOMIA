@@ -13,6 +13,9 @@ function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [nonClimate, setNonClimate] = useState(false);
+  const [nonClimateReason, setNonClimateReason] = useState('');
+  const [showNonClimatePanel, setShowNonClimatePanel] = useState(false);
   const [sseConnected, setSseConnected] = useState(false);
   const [procesandoNoticias, setProcesandoNoticias] = useState(false);
   const [trendsCreados, setTrendsCreados] = useState(0);
@@ -445,6 +448,9 @@ function Home() {
 
   const analizar = async () => {
     setError('');
+    setNonClimate(false);
+    setNonClimateReason('');
+    setShowNonClimatePanel(false);
     if (!input.trim()) return;
     try {
       setLoading(true);
@@ -457,6 +463,16 @@ function Home() {
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Error en el análisis');
 
       console.log('🔍 Resultado del análisis manual:', data);
+
+      // Mostrar mensaje si la noticia no es clasificada como Climatech
+      if (data && data.esClimatech === false) {
+        const motivo = (data.razonClimatech || data.motivoSinRelacion || '').trim();
+        setNonClimate(true);
+        setNonClimateReason(motivo);
+        setError('');
+        setLoading(false);
+        return;
+      }
 
       // Mostrar solo filas realmente insertadas en la BDD
       const inserts = Array.isArray(data.inserts) ? data.inserts : [];
@@ -484,6 +500,8 @@ function Home() {
         // No mostrar nada si no hubo insert; evitar filas sintéticas
         setError('');
         setSuccess('');
+        setNonClimate(false);
+        setNonClimateReason('');
       }
       
     } catch (e) {
@@ -530,7 +548,7 @@ function Home() {
                  ⚠️ Backend Offline
                </span>
              )}
-            <button 
+           <button 
               onClick={async () => {
                 try {
                   console.log('🧪 Ejecutando búsqueda manual de noticias...');
@@ -545,17 +563,10 @@ function Home() {
                   alert('Error ejecutando búsqueda manual');
                 }
               }}
-              style={{ 
-                marginLeft: '10px', 
-                padding: '5px 10px', 
-                background: '#28a745', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
+              className="primary-btn"
+              style={{ marginLeft: '10px' }}
             >
-              🔍 Buscar Noticias
+              Buscar noticias
             </button>
                          {procesandoNoticias && (
                <div className="processing-indicator">
@@ -610,8 +621,11 @@ function Home() {
                     className="archive-btn"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleArchive(trend); }}
                     title="Archivar trend"
+                    aria-label="Archivar trend"
                   >
-                    ✅
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 6L9 17L4 12" stroke="#28a745" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   </button>
                 </td>
                 <td>
@@ -619,8 +633,12 @@ function Home() {
                     type="button"
                     className="delete-btn"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDeleteModal(trend); }}
+                    title="Eliminar trend"
+                    aria-label="Eliminar trend"
                   >
-                    🗙
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="#ff4c4c" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
                   </button>
                 </td>
               </tr>
@@ -629,7 +647,7 @@ function Home() {
         </table>
 
         <div className="footer">
-          <p>🔗 Pega el link de una noticia climatech</p>
+          <p style={{ fontWeight: '600' }}>Pega el link de una noticia climatech</p>
           <div className="input-wrapper">
             <input
               type="text"
@@ -646,26 +664,15 @@ function Home() {
             <button onClick={analizar} disabled={loading} style={{ minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               {loading ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
-                      <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
-                    </circle>
+                  <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" className="spinner">
+                    <circle cx="25" cy="25" r="20" stroke="#fff" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4" />
                   </svg>
                   Analizando...
                 </span>
               ) : 'Analizar'}
             </button>
           </div>
-          {loading && (
-            <div style={{ marginTop: '10px', textAlign: 'center', color: '#666', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
-                  <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
-                </circle>
-              </svg>
-              Analizando contenido del link...
-            </div>
-          )}
+      {/* Loading solo dentro del botón; se eliminó el indicador adicional */}
           {error && (
             <p style={{ color: 'red', marginTop: 8, fontWeight: 'normal' }}>
               {error}
@@ -675,6 +682,38 @@ function Home() {
             <p style={{ color: 'green', marginTop: 8, fontWeight: 'bold' }}>
               {success}
             </p>
+          )}
+          {nonClimate && (
+            <div style={{
+              marginTop: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                width: 'min(720px, 96%)',
+                padding: '10px 12px',
+                background: '#1f1f23',
+                border: '1px solid #3a3a3f',
+                borderRadius: 6,
+                color: '#ddd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12
+              }}>
+                <span>La noticia no fue clasificada como Climatech.</span>
+                {nonClimateReason && (
+                  <button
+                    onClick={() => setShowNonClimatePanel(true)}
+                    className="primary-btn"
+                    style={{ padding: '6px 10px' }}
+                  >
+                    Ver motivo
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </main>
@@ -694,6 +733,20 @@ function Home() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} style={{ padding: '8px 12px', background: '#3a3a3f', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
               <button onClick={confirmDeleteWithReason} style={{ padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNonClimatePanel && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
+          <div style={{ width: 'min(720px, 96%)', background: '#2a2a2e', padding: 16, borderRadius: 8, border: '1px solid #3a3a3f', color: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Motivo de no clasificación</h3>
+              <button className="danger-btn" onClick={() => setShowNonClimatePanel(false)} style={{ padding: '6px 10px' }}>Cerrar</button>
+            </div>
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+              {nonClimateReason || 'No se proporcionó un motivo específico.'}
             </div>
           </div>
         </div>

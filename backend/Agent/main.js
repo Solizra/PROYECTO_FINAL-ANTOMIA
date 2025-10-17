@@ -14,6 +14,8 @@ import eventBus from '../EventBus.js';
 import OpenAI from "openai";
 // Configuración
 const DEBUG = false;
+// Desactivar rechazo de certificados a nivel de proceso (entornos con MITM/proxy)
+try { process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; } catch {}
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // Si estás detrás de un proxy con certificado self-signed, puedes habilitar
@@ -348,16 +350,58 @@ export async function extraerContenidoNoticia(url) {
   try {
     console.log(`🔗 Extrayendo contenido de: ${url}`);
     
-    const res = await fetch(url, { 
-      agent: httpsAgent,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    // Helper: intento de fetch con headers "reales"
+    async function fetchWithHeaders(targetUrl, attempt = 1) {
+      const commonHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'DNT': '1',
+        'Upgrade-Insecure-Requests': '1'
+      };
+      // Forzar httpsAgent para evitar fallos por cadenas de certificados (self-signed)
+      try {
+        return await fetch(targetUrl, { agent: httpsAgent, headers: commonHeaders });
+      } catch (err) {
+        const msg = String(err?.message || err || '').toUpperCase();
+        if (msg.includes('SELF_SIGNED_CERT_IN_CHAIN') || msg.includes('CERTIFICATE')) {
+          // Señalamos al caller para que use fallback
+          err._certIssue = true;
+        }
+        throw err;
       }
-    });
-    
-    if (!res.ok) throw new Error(`Error HTTP: ${res.status} ${res.statusText}`);
+    }
 
-    const html = await res.text();
+    // 1) Intento directo (con httpsAgent)
+    let res;
+    try {
+      res = await fetchWithHeaders(url, 1);
+    } catch (err) {
+      if (err?._certIssue) {
+        console.log('⚠️ Problema de certificado detectado. Usando fallback lector.');
+      } else {
+        throw err;
+      }
+    }
+    let html = '';
+    // 2) Fallback: lector remoto si bloqueado/cert o status no OK
+    if (!res || !res.ok) {
+      const statusInfo = res ? `${res.status} ${res.statusText}` : 'sin respuesta';
+      console.log(`⚠️ Fetch directo falló (${statusInfo}). Usando fallback de lector (r.jina.ai).`);
+      const encodedUrl = encodeURI(url);
+      const safeUrl = encodedUrl.startsWith('https://')
+        ? `https://r.jina.ai/${encodedUrl}`
+        : `https://r.jina.ai/http://${encodedUrl.replace(/^https?:\/\//, '')}`;
+      const proxyRes = await fetch(safeUrl, { agent: httpsAgent });
+      if (!proxyRes.ok) {
+        throw new Error(`Error HTTP: ${res ? res.status : proxyRes.status} ${res ? res.statusText : proxyRes.statusText}`);
+      }
+      html = await proxyRes.text();
+    } else {
+      html = await res.text();
+    }
     const $ = cheerio.load(html);
 
     // Limpiar elementos no deseados
@@ -554,7 +598,17 @@ export async function extraerContenidoNoticia(url) {
       .filter(texto => texto.length > 20);  // Solo párrafos significativos
 
     if (parrafos.length === 0) {
-      throw new Error('No se pudo extraer contenido útil de la página');
+      // Si venimos del fallback r.jina.ai, el contenido suele venir como texto plano
+      // Intentar usar todo el body como contenido si no se extrajo nada con selectores
+      try {
+        const bodyText = $('body').text().trim();
+        if (bodyText && bodyText.length > 100) {
+          parrafos = bodyText.split(/\n+/).map(s => s.trim()).filter(s => s.length > 50).slice(0, 200);
+        }
+      } catch {}
+      if (parrafos.length === 0) {
+        throw new Error('No se pudo extraer contenido útil de la página');
+      }
     }
 
     // Unir párrafos (sin recortar para maximizar contexto)

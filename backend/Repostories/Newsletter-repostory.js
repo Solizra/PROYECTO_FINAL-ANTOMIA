@@ -106,11 +106,6 @@ export default class NewsletterRepository {
       await client.end();
     }
   };
-      throw err;
-    } finally {
-      await client.end();
-    }
-  };
 
   deleteByIdAsync = async (id) => {
     const numericId = Number(id);

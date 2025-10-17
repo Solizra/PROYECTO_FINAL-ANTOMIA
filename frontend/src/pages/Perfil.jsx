@@ -152,7 +152,7 @@ function Perfil() {
   return (
     <div className="perfil-container">
       <div className="perfil-header">
-        <h1>Mi Perfil</h1>
+        <h1 style={{ fontSize: '2rem', fontWeight: 700 }}>Mi Perfil</h1>
         <p>Gestiona tu información personal</p>
       </div>
 
@@ -167,16 +167,17 @@ function Perfil() {
           <div className="perfil-info">
             {!editMode ? (
               <>
-                <div className="info-row">
-                  <label>Email:</label>
-                  <span>{user?.email || 'No especificado'}</span>
+                <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <label style={{ minWidth: 60 }}>Email:</label>
+                  <span style={{ flex: 1 }}>{user?.email || 'No especificado'}</span>
+                  <button 
+                    className="primary-btn"
+                    onClick={() => setEditMode(true)}
+                    style={{ minWidth: 110 }}
+                  >
+                    Editar email
+                  </button>
                 </div>
-                <button 
-                  className="edit-btn"
-                  onClick={() => setEditMode(true)}
-                >
-                  Editar Email
-                </button>
               </>
             ) : (
               <>
@@ -191,12 +192,8 @@ function Perfil() {
                   />
                 </div>
                                  <div className="form-actions">
-                   <button className="save-btn" onClick={handleSave}>
-                     Guardar
-                   </button>
-                   <button className="cancel-btn" onClick={handleCancel}>
-                     Cancelar
-                   </button>
+                  <button className="primary-btn save-btn" onClick={handleSave}>Guardar</button>
+                  <button className="danger-btn" onClick={handleCancel}>Cancelar</button>
                  </div>
                  <div className="save-info" style={{
                    marginTop: '1rem',
@@ -228,7 +225,7 @@ function Perfil() {
            <div className="email-info">
              <h4>ℹ️ Información sobre cambio de email</h4>
              <p>Al cambiar tu email, Supabase enviará un enlace de verificación al nuevo email. Deberás verificar el nuevo email antes de poder usarlo para iniciar sesión.</p>
-                           <button 
+              <button 
                 onClick={async () => {
                   try {
                     const { data: { user } } = await supabase.auth.getUser();
@@ -246,17 +243,10 @@ function Perfil() {
                     alert(`❌ Error obteniendo usuario: ${error.message}`);
                   }
                 }}
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.5rem 1rem',
-                  background: 'transparent',
-                  border: '1px solid #76f6ff',
-                  color: '#76f6ff',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
+                className="primary-btn"
+                style={{ marginTop: '1rem' }}
               >
-                🔍 Verificar Estado del Email
+                Verificar estado del email
               </button>
            </div>
          </div>

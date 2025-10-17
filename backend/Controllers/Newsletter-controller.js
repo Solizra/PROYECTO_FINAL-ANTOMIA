@@ -69,16 +69,15 @@ router.post('', async (req, res) => {
     if (exists) {
       return res.status(409).json({ message: '⛔ El newsletter ya existe', data: exists });
     }
-    // Usar funciones ligeras del agente: extraer HTML y resumir (sin clasificación ni comparación)
+    // Usar helper ligero: extraer y resumir sin clasificar ni comparar
     let titulo = '';
     let Resumen = '';
     try {
-      const extraido = await extraerContenidoNoticia(link);
-      titulo = extraido?.titulo || '';
-      const contenido = extraido?.contenido || '';
-      Resumen = contenido ? await generarResumenIA(contenido) : '';
+      const { titulo: t2, resumen } = await resumirDesdeUrl(link);
+      titulo = t2 || '';
+      Resumen = resumen || '';
     } catch (agentErr) {
-      console.warn('⚠️ No se pudo extraer título/resumen con funciones ligeras:', agentErr?.message || agentErr);
+      console.warn('⚠️ No se pudo extraer/resumir (fast path):', agentErr?.message || agentErr);
     }
 
     const created = await svc.createAsync({ link, titulo, Resumen });
@@ -137,7 +136,19 @@ router.post('/analizar', async (req, res) => {
     if (!input || typeof input !== 'string') {
       return res.status(400).json({ error: 'Falta el campo "input" (URL o texto) en el body.' });
     }
-    const resultado = await analizarNoticiaEstructurada(input);
+    // Normalizar: si parece URL pero sin esquema, anteponer https://
+    const trimmed = input.trim();
+    let urlForAnalyze = trimmed;
+    const looksLikeUrl = /^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/[^\s]*)?$/i.test(trimmed);
+    if (looksLikeUrl && !/^https?:\/\//i.test(trimmed)) {
+      urlForAnalyze = `https://${trimmed}`;
+    }
+    // Validar URL final
+    try { new URL(urlForAnalyze); } catch {
+      return res.status(400).json({ error: 'El input no es una URL válida.' });
+    }
+
+    const resultado = await analizarNoticiaEstructurada(urlForAnalyze);
     console.log('🔍 Resultado del análisis:', {
       esClimatech: resultado.esClimatech,
       url: resultado.url,
@@ -219,6 +230,13 @@ router.post('/analizar', async (req, res) => {
     });
   } catch (e) {
     console.error('Error en /api/Newsletter/analizar:', e);
+    const msg = String(e?.message || '').toLowerCase();
+    if (msg.includes('403') || msg.includes('forbidden') || msg.includes('429')) {
+      return res.status(502).json({ error: 'La fuente bloqueó la extracción (403/429). Intenta otra URL o más tarde.' });
+    }
+    if (msg.includes('no se pudo extraer contenido')) {
+      return res.status(422).json({ error: 'No se pudo extraer contenido útil de la página.' });
+    }
     res.status(500).json({ error: e?.message || 'Error interno.' });
   }
 });
