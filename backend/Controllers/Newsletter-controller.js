@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import NewsletterService from '../Services/Newsletter-services.js';
+<<<<<<< HEAD
 import { extraerContenidoNoticia, generarResumenIA } from '../Agent/main.js';
+=======
+import { analizarNoticiaEstructurada, resumirDesdeUrl } from '../Agent/main.js';
+>>>>>>> f5218d4161ee6553d108862307635712a751fe42
 import TrendsService from '../Services/Trends-services.js';
 const router = Router();
 const svc = new NewsletterService();
@@ -225,3 +229,70 @@ router.post('/analizar', async (req, res) => {
 
 
 export default router;
+
+// Nuevo endpoint: importar/upsert newsletter con resumen
+router.post('/import', async (req, res) => {
+  try {
+    const { link, titulo } = req.body || {};
+    if (!link || typeof link !== 'string') {
+      return res.status(400).json({ error: 'link requerido' });
+    }
+
+    // Validar dominio: solo Substack de pulso
+    try {
+      const u = new URL(link);
+      if (u.hostname.toLowerCase() !== 'pulsobyantom.substack.com') {
+        return res.status(400).json({ error: 'Solo se aceptan links de pulsobyantom.substack.com' });
+      }
+    } catch {
+      return res.status(400).json({ error: 'link inválido' });
+    }
+
+    // Usar agente para extraer y resumir
+    const analizado = await analizarNoticiaEstructurada(link);
+    const resumen = analizado?.resumen || '';
+    const tituloFinal = titulo || analizado?.titulo || '';
+
+    const svc = new NewsletterService();
+    const created = await svc.createOrIgnoreAsync({ link, Resumen: resumen, titulo: tituloFinal });
+    if (created?.duplicated) {
+      return res.status(200).json({ duplicated: true, existing: created.existing });
+    }
+    return res.status(201).json({ created });
+  } catch (e) {
+    console.error('Error en Newsletter-controller.import:', e);
+    res.status(500).json({ error: e?.message || 'Error interno' });
+  }
+});
+
+// Endpoint rápido: solo extraer+resumir y upsert (sin clasificar/comparar)
+router.post('/import-fast', async (req, res) => {
+  try {
+    const { link, titulo } = req.body || {};
+    if (!link || typeof link !== 'string') {
+      return res.status(400).json({ error: 'link requerido' });
+    }
+
+    try {
+      const u = new URL(link);
+      if (u.hostname.toLowerCase() !== 'pulsobyantom.substack.com') {
+        return res.status(400).json({ error: 'Solo se aceptan links de pulsobyantom.substack.com' });
+      }
+    } catch {
+      return res.status(400).json({ error: 'link inválido' });
+    }
+
+    const { titulo: t2, resumen } = await resumirDesdeUrl(link);
+    const tituloFinal = titulo || t2 || '';
+
+    const svc = new NewsletterService();
+    const created = await svc.createOrIgnoreAsync({ link, Resumen: resumen, titulo: tituloFinal });
+    if (created?.duplicated) {
+      return res.status(200).json({ duplicated: true, existing: created.existing });
+    }
+    return res.status(201).json({ created });
+  } catch (e) {
+    console.error('Error en Newsletter-controller.import-fast:', e);
+    res.status(500).json({ error: e?.message || 'Error interno' });
+  }
+});

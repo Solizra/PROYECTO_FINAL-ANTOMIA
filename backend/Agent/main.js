@@ -685,16 +685,21 @@ export async function generarResumenIA(contenido) { //de donde sale el contenido
       }
     }
     
+<<<<<<< HEAD
     // No limitar la longitud del resumen para evitar cortes
     
     console.log(`✅ Resumen inteligente generado: ${resumen.length} caracteres (mínimo 500)`);
+=======
+    // No limitar longitud máxima: mantener todo el resumen para comparaciones completas
+    console.log(`✅ Resumen inteligente generado: ${resumen.length} caracteres (sin recorte máximo)`);
+>>>>>>> f5218d4161ee6553d108862307635712a751fe42
     console.log(`📝 Resumen: "${resumen}"`);
     
     return resumen;
   } catch (error) {
     console.error(`❌ Error generando resumen: ${error.message}`);
-    // Fallback: usar los primeros 500+ caracteres del contenido
-    return contenido.substring(0, 500) + '...';
+    // Fallback: devolver el contenido completo limpio (hasta el límite de extracción)
+    return contenido;
   }
 }
 
@@ -1493,6 +1498,21 @@ export async function procesarUrlsYPersistir(items = []) {
   console.log(`📈 Total de trends creados: ${resultados.reduce((sum, r) => sum + r.trendsCreados, 0)}`);
 
   return resultados;
+}
+
+// Fast-path: solo extraer y resumir una URL (sin clasificar ni comparar)
+export async function resumirDesdeUrl(url) {
+  try {
+    const extraido = await extraerContenidoNoticia(url);
+    const texto = extraido?.contenido || '';
+    const resumen = await generarResumenIA(texto);
+    return {
+      titulo: extraido?.titulo || '',
+      resumen: resumen || ''
+    };
+  } catch (e) {
+    return { titulo: '', resumen: '' };
+  }
 }
 
 // Función para manejar el chat interactivo

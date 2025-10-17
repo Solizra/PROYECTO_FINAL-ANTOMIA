@@ -10,6 +10,7 @@ import FuentesRouter from './Controllers/Fuentes-controller.js'
 import FeedbackRouter from './Controllers/Feedback-controller.js'
 import { analizarNoticiaEstructurada } from './Agent/main.js';
 import { iniciarProgramacionAutomatica } from './APIs/buscarNoticias.mjs';
+import { importSubstackFeed, scheduleSubstackImport } from './APIs/importSubstack.mjs';
 import eventBus from './EventBus.js';
 const app = express();
 const port = process.env.PORT || 3000;
@@ -110,11 +111,22 @@ app.post('/api/news/search-now', async (req, res) => {
   }
 });
 
+// Import manual del feed Substack ahora
+app.post('/api/newsletters/import-substack-now', async (req, res) => {
+  try {
+    const result = await importSubstackFeed();
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error?.message || 'Error' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   // Iniciar scheduler que busca noticias y las procesa con el agente automáticamente
   try {
     iniciarProgramacionAutomatica();
+    scheduleSubstackImport();
   } catch (e) {
     console.error('Error iniciando la programación automática:', e);
   }

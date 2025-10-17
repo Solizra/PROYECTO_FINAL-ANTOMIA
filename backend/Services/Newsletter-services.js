@@ -14,6 +14,18 @@ export default class NewsletterService {
     }
   };
 
+<<<<<<< HEAD
+  createOrIgnoreAsync = async ({ link, Resumen, titulo }) => {
+    try {
+      const repo = new NewsletterRepostory();
+      if (!link || typeof link !== 'string') {
+        throw new Error('link requerido');
+      }
+      const created = await repo.createOrIgnoreAsync({ link, Resumen, titulo });
+      return created;
+    } catch (error) {
+      console.error('Error en NewsletterService.createOrIgnoreAsync:', error);
+=======
   existsByLink = async (link) => {
     try {
       const repo = new NewsletterRepostory();
@@ -35,6 +47,7 @@ export default class NewsletterService {
       return await repo.createAsync({ link, titulo, Resumen });
     } catch (error) {
       console.error('Error en NewsletterService.createAsync:', error);
+>>>>>>> 9ab415b3329b87f23874367546435a5848e88e49
       throw error;
     }
   };

@@ -78,7 +78,7 @@ export default class NewsletterRepository {
     }
   };
 
-  createAsync = async ({ link, titulo, Resumen }) => {
+  createOrIgnoreAsync = async ({ link, Resumen, titulo }) => {
     if (!link || typeof link !== 'string') {
       throw new Error('El campo "link" es obligatorio');
     }
@@ -87,20 +87,25 @@ export default class NewsletterRepository {
     try {
       await client.connect();
       // Verificar duplicado exacto antes de insertar
-      const existing = await client.query('SELECT id, link, "Resumen", titulo FROM "Newsletter" WHERE link = $1 LIMIT 1', [link]);
+      const existing = await client.query(
+        'SELECT id, link, "Resumen", titulo FROM "Newsletter" WHERE link = $1 LIMIT 1',
+        [link]
+      );
       if (existing.rows && existing.rows.length > 0) {
-        return { duplicated: true, data: existing.rows[0] };
+        return { duplicated: true, existing: existing.rows[0] };
       }
-      const sql = `
-        INSERT INTO "Newsletter" (link, "Resumen", titulo)
-        VALUES ($1, $2, COALESCE($3, ''))
-        RETURNING id, link, "Resumen", titulo
-      `;
-      const params = [link, Resumen || null, titulo || null];
-      const result = await client.query(sql, params);
-      return result.rows?.[0] || null;
+      const ins = await client.query(
+        'INSERT INTO "Newsletter" (link, "Resumen", titulo) VALUES ($1, $2, $3) RETURNING id, link, "Resumen", titulo',
+        [link, Resumen || '', titulo || '']
+      );
+      return ins.rows && ins.rows[0] ? ins.rows[0] : null;
     } catch (err) {
-      console.error('Error al crear newsletter:', err);
+      console.error('Error creando newsletter:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
       throw err;
     } finally {
       await client.end();
