@@ -20,6 +20,37 @@ router.get('', async (req, res) => {
   }
 });
 
+router.post('', async (req, res) => {
+  try {
+    const { link } = req.body || {};
+    if (!link || typeof link !== 'string') {
+      return res.status(400).json({ error: 'Falta el campo "link" en el body.' });
+    }
+    const ALLOWED_PREFIX = 'https://pulsobyantom.substack.com/p';
+    if (!link.startsWith(ALLOWED_PREFIX)) {
+      return res.status(400).json({ error: `El link debe ser un newsletter válido de Pulso by Antom (${ALLOWED_PREFIX}...)` });
+    }
+    // Chequear duplicado exacto
+    const exists = await svc.existsByLink(link);
+    if (exists) {
+      return res.status(409).json({ message: '⛔ El newsletter ya existe', data: exists });
+    }
+    const created = await svc.createAsync({ link });
+    // Si el repositorio igualmente devuelve duplicated por carrera
+    if (created && created.duplicated) {
+      return res.status(409).json({ message: '⛔ El newsletter ya existe', data: created.data });
+    }
+    return res.status(201).json({ message: '✅ Newsletter agregado', data: created });
+  } catch (e) {
+    console.error('❌ Error en Newsletter-controller.createAsync:', e);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: e.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Analizar noticia con el agente (sin LLM)
 router.post('/analizar', async (req, res) => {
   try {

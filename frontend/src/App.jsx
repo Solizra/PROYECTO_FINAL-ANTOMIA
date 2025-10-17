@@ -6,6 +6,7 @@ import InfoTrend from "./pages/InfoTrend";
 import Perfil from "./pages/Perfil";
 import Archivados from "./pages/Archivados"; 
 import Fuentes from "./pages/Fuentes";
+import Newsletters from "./pages/Newsletters";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/perfil" element={<Perfil />} />
         <Route path="/archivados" element={<Archivados />} />
         <Route path="/fuentes" element={<Fuentes />} />
+        <Route path="/newsletters" element={<Newsletters />} />
       </Route>
     </Routes>
   );

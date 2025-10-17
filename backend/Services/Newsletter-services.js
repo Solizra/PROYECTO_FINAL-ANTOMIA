@@ -13,4 +13,29 @@ export default class NewsletterService {
       throw error;
     }
   };
+
+  existsByLink = async (link) => {
+    try {
+      const repo = new NewsletterRepostory();
+      if (!link || typeof link !== 'string') return null;
+      return await repo.existsByLinkExact(link);
+    } catch (error) {
+      console.error('Error en NewsletterService.existsByLink:', error);
+      throw error;
+    }
+  };
+
+  createAsync = async (payload) => {
+    try {
+      const repo = new NewsletterRepostory();
+      const { link } = payload || {};
+      if (!link || typeof link !== 'string') {
+        throw new Error('Falta el campo "link"');
+      }
+      return await repo.createAsync({ link });
+    } catch (error) {
+      console.error('Error en NewsletterService.createAsync:', error);
+      throw error;
+    }
+  };
 }
