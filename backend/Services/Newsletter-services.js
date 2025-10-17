@@ -13,4 +13,18 @@ export default class NewsletterService {
       throw error;
     }
   };
+
+  createOrIgnoreAsync = async ({ link, Resumen, titulo }) => {
+    try {
+      const repo = new NewsletterRepostory();
+      if (!link || typeof link !== 'string') {
+        throw new Error('link requerido');
+      }
+      const created = await repo.createOrIgnoreAsync({ link, Resumen, titulo });
+      return created;
+    } catch (error) {
+      console.error('Error en NewsletterService.createOrIgnoreAsync:', error);
+      throw error;
+    }
+  };
 }

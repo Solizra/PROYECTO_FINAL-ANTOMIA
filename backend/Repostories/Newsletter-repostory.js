@@ -57,4 +57,30 @@ export default class NewsletterRepository {
 
     return newsletters;
   };
+
+  createOrIgnoreAsync = async ({ link, Resumen, titulo }) => {
+    const client = new Client(DBConfig);
+    try {
+      await client.connect();
+      // Verificar existencia por link
+      const sel = await client.query(
+        'SELECT id, link, "Resumen", titulo FROM "Newsletter" WHERE link = $1 LIMIT 1',
+        [link]
+      );
+      if (sel.rows && sel.rows.length > 0) {
+        return { duplicated: true, existing: sel.rows[0] };
+      }
+
+      const ins = await client.query(
+        'INSERT INTO "Newsletter" (link, "Resumen", titulo) VALUES ($1, $2, $3) RETURNING id, link, "Resumen", titulo',
+        [link, Resumen || '', titulo || '']
+      );
+      return ins.rows && ins.rows[0] ? ins.rows[0] : null;
+    } catch (err) {
+      console.error('Error creando newsletter:', err);
+      throw err;
+    } finally {
+      await client.end();
+    }
+  };
 }
