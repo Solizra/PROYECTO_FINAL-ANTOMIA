@@ -1,10 +1,6 @@
 import { Router } from 'express';
 import NewsletterService from '../Services/Newsletter-services.js';
-<<<<<<< HEAD
-import { extraerContenidoNoticia, generarResumenIA } from '../Agent/main.js';
-=======
 import { analizarNoticiaEstructurada, resumirDesdeUrl } from '../Agent/main.js';
->>>>>>> f5218d4161ee6553d108862307635712a751fe42
 import TrendsService from '../Services/Trends-services.js';
 const router = Router();
 const svc = new NewsletterService();

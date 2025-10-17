@@ -31,7 +31,7 @@ function Fuentes() {
     setError(''); setSuccess('');
     const d = fuente.trim().toLowerCase();
     const c = categoria.trim();
-    if (!d) { setError('Ingresá una fuente (fuente)'); return; }
+    if (!d) { setError('Debes ingresar una fuente'); return; }
     setLoading(true);
     try {
       const res = await fetch('http://localhost:3000/api/Fuentes', {
@@ -42,10 +42,10 @@ function Fuentes() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && data.error) || 'No se pudo agregar la fuente');
       setFuente(''); setCategoria('');
-      setSuccess(data?.message || '✅ Fuente agregada');
+      setSuccess(data?.message || 'Fuente agregada');
       await cargarFuentes();
     } catch (e) {
-      setError(e.message || 'Error agregando fuente');
+      setError(e.message || 'No se pudo agregar la fuente');
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ function Fuentes() {
       const res = await fetch(`http://localhost:3000/api/Fuentes?fuente=${encodeURIComponent(d)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && data.error) || 'No se pudo eliminar');
-      setSuccess('🗑️ Fuente desactivada');
+      setSuccess('Fuente desactivada');
       await cargarFuentes();
     } catch (e) {
       setError(e.message || 'Error eliminando fuente');
@@ -88,7 +88,18 @@ function Fuentes() {
             onKeyDown={(e) => { if (e.key === 'Enter') agregarFuente(); }}
             disabled={loading}
           />
-          <button onClick={agregarFuente} disabled={loading}>{loading ? '⏳' : 'Agregar'}</button>
+          <button onClick={agregarFuente} disabled={loading} style={{ minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {loading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
+                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
+                  </circle>
+                </svg>
+                Cargando
+              </span>
+            ) : 'Agregar'}
+          </button>
         </div>
 
         {error && <p style={{ color: 'salmon', textAlign: 'center', marginBottom: 12 }}>{error}</p>}

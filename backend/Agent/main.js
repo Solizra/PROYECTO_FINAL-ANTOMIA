@@ -601,98 +601,111 @@ export async function generarResumenIA(contenido) { //de donde sale el contenido
     
     console.log(`📊 Total de oraciones encontradas: ${oraciones.length}`);
     
-    // Estrategia de resumen inteligente: seleccionar oraciones clave de diferentes partes
-    let resumen = '';
-    
+    // Seleccionar oraciones clave y luego agrupar SIEMPRE en párrafos
+    const oracionesSeleccionadas = [];
     if (oraciones.length <= 3) {
-      // Si hay pocas oraciones, usar todas
-      resumen = oraciones.join('. ');
+      // Con pocas oraciones, tomar todas
+      oracionesSeleccionadas.push(...oraciones);
     } else {
-      // Estrategia inteligente: primera + media + última + algunas del medio
-      const oracionesSeleccionadas = [];
-      
-      // 1. Siempre incluir la primera oración (introducción/título)
+      // primera + media + última + algunas del medio
       oracionesSeleccionadas.push(oraciones[0]);
-      
-      // 2. Incluir oraciones del medio (contenido principal)
       const medio = Math.floor(oraciones.length / 2);
-      const rangoMedio = Math.floor(oraciones.length * 0.3); // 30% del medio
-      
+      const rangoMedio = Math.floor(oraciones.length * 0.3);
       for (let i = Math.max(1, medio - rangoMedio); i < Math.min(oraciones.length - 1, medio + rangoMedio); i++) {
-        if (oraciones[i].length > 30) { // Solo oraciones significativas
+        if (oraciones[i].length > 30) {
           oracionesSeleccionadas.push(oraciones[i]);
         }
       }
-      
-      // 3. Incluir la última oración (conclusión)
       if (oraciones.length > 1) {
         oracionesSeleccionadas.push(oraciones[oraciones.length - 1]);
       }
-      
-      // 4. Si aún no alcanzamos 500 caracteres, agregar más oraciones del medio
-      let caracteresAcumulados = oracionesSeleccionadas.reduce((sum, oracion) => sum + oracion.length, 0);
-      
+      let caracteresAcumulados = oracionesSeleccionadas.reduce((sum, o) => sum + o.length, 0);
       if (caracteresAcumulados < 500) {
-        // Agregar oraciones del medio que no estén ya incluidas
         for (let i = 1; i < oraciones.length - 1; i++) {
           if (caracteresAcumulados >= 500) break;
-          
-          const oracion = oraciones[i];
-          if (oracion.length > 30 && !oracionesSeleccionadas.includes(oracion)) {
-            oracionesSeleccionadas.push(oracion);
-            caracteresAcumulados += oracion.length;
+          const o = oraciones[i];
+          if (o.length > 30 && !oracionesSeleccionadas.includes(o)) {
+            oracionesSeleccionadas.push(o);
+            caracteresAcumulados += o.length;
           }
         }
       }
-      
-      // 5. Ordenar las oraciones por su posición original para mantener coherencia
-      oracionesSeleccionadas.sort((a, b) => {
-        const indexA = oraciones.indexOf(a);
-        const indexB = oraciones.indexOf(b);
-        return indexA - indexB;
-      });
-      
-      resumen = oracionesSeleccionadas.join('. ');
+      oracionesSeleccionadas.sort((a, b) => oraciones.indexOf(a) - oraciones.indexOf(b));
+    }
+
+    // Agrupar en párrafos legibles SIEMPRE
+    let resumen = '';
+    const paragraphs = [];
+    let current = [];
+    let currentLen = 0;
+    const maxCharsPerParagraph = 600;
+    const maxSentencesPerParagraph = 5;
+    for (const sentence of oracionesSeleccionadas) {
+      const addLen = sentence.length + 2;
+      const willOverflow = currentLen + addLen > maxCharsPerParagraph || current.length >= maxSentencesPerParagraph;
+      if (willOverflow && current.length > 0) {
+        const p = current.join('. ');
+        paragraphs.push(p.endsWith('.') ? p : p + '.');
+        current = [];
+        currentLen = 0;
+      }
+      current.push(sentence);
+      currentLen += addLen;
+    }
+    if (current.length > 0) {
+      const p = current.join('. ');
+      paragraphs.push(p.endsWith('.') ? p : p + '.');
+    }
+
+    // Garantizar al menos 2 párrafos si el texto es lo suficientemente largo
+    const totalChars = oracionesSeleccionadas.reduce((s, o) => s + o.length, 0);
+    if (paragraphs.length < 2 && (oracionesSeleccionadas.length > 2 || totalChars > 250)) {
+      const mid = Math.max(1, Math.ceil(oracionesSeleccionadas.length / 2));
+      const p1 = oracionesSeleccionadas.slice(0, mid).join('. ');
+      const p2 = oracionesSeleccionadas.slice(mid).join('. ');
+      resumen = [p1, p2].map(x => (x && !x.endsWith('.') ? x + '.' : x)).filter(Boolean).join('\n\n');
+    } else {
+      resumen = paragraphs.join('\n\n');
     }
     
-    // Limpiar y formatear resumen
+    // Limpiar espacios intra-párrafo pero preservar saltos
     resumen = resumen
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Asegurar que termine con punto
-    if (!resumen.endsWith('.')) {
-      resumen += '.';
-    }
+      .split(/\n\n+/)
+      .map(p => p.replace(/\s+/g, ' ').trim())
+      .filter(p => p.length > 0)
+      .map(p => (p.endsWith('.') ? p : p + '.'))
+      .join('\n\n');
     
     // Garantizar mínimo de 500 caracteres
     if (resumen.length < 500) {
       console.log(`⚠️ Resumen muy corto (${resumen.length} chars), expandiendo...`);
       
-      // Agregar más contenido del medio de la noticia
-      const oracionesRestantes = oraciones.filter(o => !resumen.includes(o));
-      for (const oracion of oracionesRestantes) {
-        if (resumen.length >= 500) break;
-        if (oracion.length > 30) {
-          resumen += ' ' + oracion;
+      // Agregar más oraciones manteniendo párrafos
+      const existingSentences = new Set(
+        resumen.replace(/\n\n/g, ' ').split('.').map(s => s.trim()).filter(Boolean)
+      );
+      const extra = [];
+      let cur = [];
+      let len = 0;
+      for (const s of oraciones) {
+        const st = s.trim();
+        if (st.length <= 30) continue;
+        if (existingSentences.has(st)) continue;
+        if (len + st.length > 600 || cur.length >= 5) {
+          extra.push(cur.join('. ') + '.');
+          cur = [];
+          len = 0;
         }
+        cur.push(st);
+        len += st.length + 2;
+        if ((resumen + extra.join(' ')).length >= 500) break;
       }
-      
-      resumen = resumen.replace(/\s+/g, ' ').trim();
-      
-      if (!resumen.endsWith('.')) {
-        resumen += '.';
-      }
+      if (cur.length) extra.push(cur.join('. ') + '.');
+      if (extra.length) resumen = [resumen, ...extra].filter(Boolean).join('\n\n');
     }
     
-<<<<<<< HEAD
-    // No limitar la longitud del resumen para evitar cortes
-    
-    console.log(`✅ Resumen inteligente generado: ${resumen.length} caracteres (mínimo 500)`);
-=======
     // No limitar longitud máxima: mantener todo el resumen para comparaciones completas
     console.log(`✅ Resumen inteligente generado: ${resumen.length} caracteres (sin recorte máximo)`);
->>>>>>> f5218d4161ee6553d108862307635712a751fe42
     console.log(`📝 Resumen: "${resumen}"`);
     
     return resumen;
@@ -1586,3 +1599,4 @@ const isDirectRun = (() => {
 if (isDirectRun) {
   empezarChat();
 }
+

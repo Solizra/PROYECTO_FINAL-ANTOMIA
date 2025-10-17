@@ -7,6 +7,8 @@ function Newsletters() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [panelMsg, setPanelMsg] = useState('');
+  const [panelErr, setPanelErr] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -31,7 +33,7 @@ function Newsletters() {
   const agregar = async () => {
     setError(''); setSuccess('');
     const u = normalizarUrl(link);
-    if (!u) { setError('Ingresá una URL'); return; }
+    if (!u) { setError('Debes ingresar una URL'); return; }
     if (!/^https?:\/\//i.test(u)) { setError('La URL debe iniciar con http(s)://'); return; }
     if (!u.startsWith('https://pulsobyantom.substack.com/p')) { setError('Solo se aceptan newsletters de Pulso by Antom (Substack)'); return; }
     setLoading(true);
@@ -43,7 +45,7 @@ function Newsletters() {
       });
       const data = await res.json().catch(() => null);
       if (res.status === 409) {
-        setError('⚠️ Ese newsletter ya existe');
+        setError('El newsletter ya existe');
         setLink('');
         await cargar();
         // mantener error visible más tiempo
@@ -51,12 +53,12 @@ function Newsletters() {
       }
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'No se pudo agregar');
       setLink('');
-      setSuccess('✅ Newsletter agregado correctamente');
+      setSuccess('Newsletter agregado correctamente');
       await cargar();
       // auto-dismiss éxito
       setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
-      setError(e.message || 'Error agregando newsletter');
+      setError(e.message || 'No se pudo agregar el newsletter');
       // mantener error visible por más tiempo
       setTimeout(() => setError(''), 10000);
     } finally {
@@ -74,7 +76,7 @@ function Newsletters() {
       const res = await fetch(`http://localhost:3000/api/Newsletter?${qs.toString()}`, { method: 'DELETE' });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'No se pudo eliminar');
-      setSuccess('🗑️ Newsletter eliminado');
+      setSuccess('Newsletter eliminado');
       await cargar();
       setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
@@ -99,7 +101,18 @@ function Newsletters() {
             onKeyDown={(e) => { if (e.key === 'Enter') agregar(); }}
             disabled={loading}
           />
-          <button onClick={agregar} disabled={loading}>{loading ? '⏳' : 'Agregar'}</button>
+          <button onClick={agregar} disabled={loading} style={{ minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {loading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
+                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
+                  </circle>
+                </svg>
+                Cargando
+              </span>
+            ) : 'Agregar'}
+          </button>
         </div>
 
         {error && <p style={{ color: 'salmon', textAlign: 'center', marginBottom: 12 }}>{error}</p>}
@@ -167,9 +180,13 @@ function Newsletters() {
                       // cancelar edición: descartar cambios
                       setDraftResumen(activeItem?.Resumen || '');
                       setEditMode(false);
+                      setPanelMsg('');
+                      setPanelErr('');
                     } else {
                       setDraftResumen(activeItem?.Resumen || '');
                       setEditMode(true);
+                      setPanelMsg('');
+                      setPanelErr('');
                     }
                   }}
                   title={editMode ? 'Cancelar edición' : 'Editar'}
@@ -182,7 +199,7 @@ function Newsletters() {
                 <button
                   className="delete-btn"
                   style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', padding: 0 }}
-                  onClick={() => { setPanelOpen(false); setActiveItem(null); setEditMode(false); }}
+                  onClick={() => { setPanelOpen(false); setActiveItem(null); setEditMode(false); setPanelMsg(''); setPanelErr(''); }}
                   title="Cerrar"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -192,6 +209,19 @@ function Newsletters() {
                 </button>
               </div>
             </div>
+
+            {(panelMsg || panelErr) && (
+              <div style={{
+                background: panelErr ? '#863a3a' : '#2e5a3a',
+                color: '#fff',
+                padding: '8px 12px',
+                borderRadius: 8,
+                marginBottom: 10,
+                border: panelErr ? '1px solid #a44' : '1px solid #3a7a4a'
+              }}>
+                {panelErr || panelMsg}
+              </div>
+            )}
 
             {!editMode ? (
               <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{draftResumen || '—'}</div>
@@ -234,12 +264,14 @@ function Newsletters() {
                         setActiveItem(prev => prev ? { ...prev, Resumen: draftResumen || '' } : prev);
                         // recargar desde backend para asegurar persistencia
                         await cargar();
-                        setSuccess('✅ Resumen actualizado');
-                        setTimeout(() => setSuccess(''), 4000);
+                        setPanelErr('');
+                        setPanelMsg('✅ Resumen actualizado');
+                        setTimeout(() => setPanelMsg(''), 4000);
                         setEditMode(false);
                       } catch (e) {
-                        setError(e.message || 'Error actualizando resumen');
-                        setTimeout(() => setError(''), 10000);
+                        setPanelMsg('');
+                        setPanelErr(e.message || 'Error actualizando resumen');
+                        setTimeout(() => setPanelErr(''), 10000);
                       }
                     }}
                   >Guardar</button>

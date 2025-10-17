@@ -467,19 +467,19 @@ function Home() {
       // Mostrar mensaje de éxito
       if (data.inserts && data.inserts.length > 0) {
         const trendsCreados = data.inserts.length;
-        console.log(`✅ Se crearon ${trendsCreados} nuevos trends en la base de datos`);
+        console.log(`Se crearon ${trendsCreados} nuevos trends en la base de datos`);
         
         // Limpiar el input después de agregar exitosamente
         setInput('');
         
-        // Mostrar mensaje de éxito
+        // Mostrar mensaje de éxito (formal)
         setError('');
-        setSuccess(`✅ Se agregaron ${trendsCreados} nuevos trends a la tabla!`);
+        setSuccess(`Se agregaron ${trendsCreados} nuevos trends a la tabla.`);
         
-        // Limpiar mensaje de éxito después de 5 segundos
+        // Limpiar mensaje de éxito después de 4 segundos
         setTimeout(() => {
           setSuccess('');
-        }, 5000);
+        }, 4000);
       } else {
         // No mostrar nada si no hubo insert; evitar filas sintéticas
         setError('');
@@ -643,35 +643,36 @@ function Home() {
               onKeyDown={(e) => { if (e.key === 'Enter') analizar(); }}
               disabled={loading}
             />
-            <button onClick={analizar} disabled={loading}>
-              {loading ? '⏳ Analizando...' : 'Analizar'}
+            <button onClick={analizar} disabled={loading} style={{ minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {loading ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
+                      <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
+                    </circle>
+                  </svg>
+                  Analizando...
+                </span>
+              ) : 'Analizar'}
             </button>
           </div>
           {loading && (
-            <div style={{ 
-              marginTop: '10px', 
-              textAlign: 'center', 
-              color: '#666',
-              fontSize: '14px'
-            }}>
-              ⏳ Analizando contenido del link...
+            <div style={{ marginTop: '10px', textAlign: 'center', color: '#666', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="25" cy="25" r="20" stroke="#bbb" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="31.4 31.4">
+                  <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+              Analizando contenido del link...
             </div>
           )}
           {error && (
-            <p style={{ 
-              color: error.includes('✅') ? 'green' : 'red', 
-              marginTop: 8,
-              fontWeight: error.includes('✅') ? 'bold' : 'normal'
-            }}>
+            <p style={{ color: 'red', marginTop: 8, fontWeight: 'normal' }}>
               {error}
             </p>
           )}
           {success && (
-            <p style={{ 
-              color: 'green', 
-              marginTop: 8,
-              fontWeight: 'bold'
-            }}>
+            <p style={{ color: 'green', marginTop: 8, fontWeight: 'bold' }}>
               {success}
             </p>
           )}
