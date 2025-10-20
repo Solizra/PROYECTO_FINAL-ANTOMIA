@@ -124,13 +124,6 @@ function Perfil() {
         
         alert("✅ Solicitud enviada a Supabase. Deberás verificar el cambio en tu casilla de mail.");
         
-        // Opcional: Cerrar sesión para que el usuario use el nuevo email
-        setTimeout(() => {
-          if (window.confirm("¿Quieres cerrar sesión para probar el nuevo email?")) {
-            supabase.auth.signOut();
-            navigate("/");
-          }
-        }, 2000);
       } else {
         throw new Error("No se pudo obtener información del usuario actual");
       }
@@ -192,12 +185,20 @@ function Perfil() {
                   <label style={{ minWidth: 60 }}>Email:</label>
                   <span style={{ flex: 1 }}>{user?.email || 'No especificado'}</span>
                   <button 
-                    className="primary-btn"
+                    className="secondary-btn"
                     onClick={() => setEditMode(true)}
-                    style={{ minWidth: 110 }}
+                    style={{ minWidth: 90 }}
                   >
                     Editar email
                   </button>
+                  <button 
+                    className="secondary-btn"
+                    onClick={() => navigate('/PROYECTO_FINAL-ANTOMIA/change-password')}
+                    style={{ minWidth: 90 }}
+                  >
+                    Cambiar contraseña
+                  </button>
+                 
                 </div>
               </>
             ) : (
@@ -246,29 +247,6 @@ function Perfil() {
            <div className="email-info">
              <h4>ℹ️ Información sobre cambio de email</h4>
              <p>Al cambiar tu email, Supabase enviará un enlace de verificación al nuevo email. Deberás verificar el nuevo email antes de poder usarlo para iniciar sesión.</p>
-              <button 
-                onClick={async () => {
-                  try {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (user) {
-                      const localUser = JSON.parse(localStorage.getItem('user') || '{}');
-                      alert(`📧 Estado del Email:\n\n` +
-                            `🔵 En Supabase: ${user.email}\n` +
-                            `🟡 En localStorage: ${localUser.email || 'No encontrado'}\n` +
-                            `🟢 En estado local: ${user?.email || 'No encontrado'}\n\n` +
-                            `💡 Si los emails son diferentes, espera unos segundos y verifica nuevamente.`);
-                    } else {
-                      alert('❌ No se pudo obtener información del usuario de Supabase');
-                    }
-                  } catch (error) {
-                    alert(`❌ Error obteniendo usuario: ${error.message}`);
-                  }
-                }}
-                className="primary-btn"
-                style={{ marginTop: '1rem' }}
-              >
-                Verificar estado del email
-              </button>
            </div>
          </div>
       </div>

@@ -42,7 +42,7 @@ function LoginForm() {
 
   return (
     <div className="form-wrapper">
-      <img src="/logo.png" alt="Logo AntomIA" className="login-logo" />
+      <img src="\public\logo.png" alt="Logo AntomIA" className="login-logo" />
       <h2 className="title">AntomIA</h2>
       <p className="subtitle">¡Bienvenido a la IA de Antom!</p>
 
@@ -66,7 +66,9 @@ function LoginForm() {
         />
 
         {errorMsg && <p className="error-msg">{errorMsg}</p>}
-        <a href="#">¿Olvidaste tu contraseña?</a>
+        <a href="/PROYECTO_FINAL-ANTOMIA/forgot-password " style={{ color: '#aaa', textDecoration: 'none', fontSize: '0.9rem' }}>
+          ¿Olvidaste tu contraseña?
+        </a>
 
         <button type="submit" disabled={cargando}>
           {cargando ? 'Ingresando...' : 'Continuar'}

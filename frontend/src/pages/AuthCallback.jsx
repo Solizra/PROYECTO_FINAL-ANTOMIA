@@ -32,8 +32,15 @@ function AuthCallback() {
             }
             throw error;
           }
-          setStatus('Verificación completada. Redirigiendo...');
-          navigate('/perfil', { replace: true });
+          
+          // Si es un flujo de recuperación, redirigir a change-password
+          if (type === 'recovery') {
+            setStatus('Verificación completada. Redirigiendo a cambio de contraseña...');
+            navigate('/change-password', { replace: true });
+          } else {
+            setStatus('Verificación completada. Redirigiendo...');
+            navigate('/perfil', { replace: true });
+          }
           return;
         }
 

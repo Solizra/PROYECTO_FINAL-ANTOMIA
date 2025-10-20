@@ -8,12 +8,16 @@ import Archivados from "./pages/Archivados";
 import Fuentes from "./pages/Fuentes";
 import Newsletters from "./pages/Newsletters";
 import AuthCallback from "./pages/AuthCallback";
+import ForgotPassword from "./pages/ForgotPassword";
+import ChangePassword from "./pages/ChangePassword";
 
 function App() {
   return (
     <Routes>
-      /* Ruta sin layout */
+      /* Rutas sin layout */
       <Route path="/" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/change-password" element={<ChangePassword />} />
 
       /* Rutas con layout */
       <Route element={<Layout />}>

@@ -603,7 +603,7 @@ function Home() {
                       className="info-btn-outline"
                       onClick={() => console.log('InfoTrend: Navegando a trend ID:', trend.id, 'Trend completo:', trend)}
                     >
-                      <img src="/ojito.png" alt="Ojo" />
+                      <img src="ojito.png" alt="Ojo" />
                     </button>
                   </Link>
                 </td>
