@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, ChevronLeft, ChevronRight } from "lucide-react"; // si usás este ícono
+import { LogOut, ChevronLeft, ChevronRight, Settings } from "lucide-react"; // si usás este ícono
 import "./Layout.css";
 
 function Layout() {
@@ -42,14 +42,22 @@ function Layout() {
               <Link to="/newsletters">Newsletters</Link>
             </li>
             
-            <li className={location.pathname === "/perfil" ? "active" : ""}>
-              <Link to="/perfil">Perfil</Link>
-            </li>
             <li className={location.pathname === "/archivados" ? "active" : ""}>
               <Link to="/archivados">Archivados</Link>
             </li>
           </ul>
         </nav>
+
+        <div className={`settings-section ${sidebarExpanded ? 'visible' : 'hidden'}`}>
+          <Link 
+            to="/perfil" 
+            className={`settings-btn ${location.pathname === "/perfil" ? "active" : ""}`}
+            title="Configuración"
+          >
+            <Settings size={18} />
+            {sidebarExpanded && <span>Configuración</span>}
+          </Link>
+        </div>
 
         <button className={`logout-btn ${sidebarExpanded ? 'visible' : 'hidden'}`} onClick={handleLogout}>
           <LogOut size={18} style={{ marginRight: "8px" }} />

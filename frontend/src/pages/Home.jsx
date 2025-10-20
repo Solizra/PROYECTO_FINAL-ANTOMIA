@@ -691,7 +691,7 @@ function Home() {
               justifyContent: 'center',
               gap: 12
             }}>
-              <span style={{ color: '#ddd', fontSize: '14px' }}>
+              <span style={{ color: '#EB3636', fontSize: '14px' }}>
                 La noticia no fue clasificada como Climatech.
               </span>
               {nonClimateReason && (
