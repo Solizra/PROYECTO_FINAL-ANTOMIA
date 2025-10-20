@@ -219,36 +219,6 @@ function buildTermFreq(tokens) {
   }
   return tf;
 }
-
-function cosineSimilarity(tfA, tfB) { //COMPARA LOS TEXTOS
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (const [term, val] of tfA.entries()) {
-    normA += val * val;
-    if (tfB.has(term)) dot += val * (tfB.get(term) || 0);
-  }
-  for (const val of tfB.values()) normB += val * val;
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) + 1e-9) / (Math.sqrt(normB) + 1e-9);
-}
-
-function bigrams(tokens) {
-  const res = [];
-  for (let i = 0; i < tokens.length - 1; i++) {
-    res.push(tokens[i] + ' ' + tokens[i + 1]);
-  }
-  return res;
-}
-
-function trigrams(tokens) {
-  const res = [];
-  for (let i = 0; i < tokens.length - 2; i++) {
-    res.push(tokens[i] + ' ' + tokens[i + 1] + ' ' + tokens[i + 2]);
-  }
-  return res;
-}
-
 function jaccard(setA, setB) { //COMPARA LA SIMILUTUD
   const inter = new Set([...setA].filter(x => setB.has(x))).size;
   const uni = new Set([...setA, ...setB]).size;
@@ -271,22 +241,6 @@ function detectarPlataforma(urlString) {
     return '';
   }
 }
-
-// Generar breve resumen de por qué el trend es relevante/famoso
-function generarResumenFamaTrend(contenido, sitio, autor, plataforma) {
-  console.log("Entré a la función: generarResumenFamaTrend" );
-
-  const tokens = tokenize(contenido);
-  const tf = buildTermFreq(tokens);
-  const top = [...tf.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t])=>t).join(', ');
-  const partes = [];
-  if (top) partes.push(`Tema destacado: ${top}`);
-  if (plataforma) partes.push(`Difundido en ${plataforma}`);
-  else if (sitio) partes.push(`Publicado en ${sitio}`);
-  if (autor) partes.push(`Autor/Perfil: ${autor}`);
-  return partes.length ? partes.join(' | ') : 'Trend relevante por su contenido y difusión.';
-}
-
  
 // Mapa de temas y sinónimos para mejorar coincidencias semánticas
 const THEMATIC_SYNONYMS = {
@@ -318,23 +272,7 @@ function extractThematicTags(text) {
   }
   return tags;
 }
-
-// Extracción muy simple de entidades nombradas (secuencias de palabras capitalizadas)
-function extractNamedEntities(text) {
-  try {
-    const entities = new Set();
-    const regex = /(?:\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+){0,3})|\b[A-Z]{2,}[A-Z0-9]*\b/g;
-    const matches = String(text || '').match(regex) || [];
-    for (const m of matches) {
-      const clean = m.trim();
-      if (clean.length >= 3 && !/^El|La|Los|Las|Un|Una|Y|De|Del|Al$/.test(clean)) entities.add(clean);
-    }
-    return entities;
-  } catch {
-    return new Set();
-  }
-}
-
+ 
 // Conjuntos temáticos para co-ocurrencia IA+Agua/Energía
 const AI_TERMS = new Set(['ia','inteligencia artificial','ai','machine learning','chatgpt','modelo de lenguaje','modelos de lenguaje','openai','microsoft','google']);
 const WATER_TERMS = new Set(['agua','hídrica','hidrica','huella hídrica','huella hidrica','consumo de agua','refrigeración','refrigeracion','enfriamiento','torres de enfriamiento','torres de refrigeración','torres de refrigeracion','centros de datos','data center']);

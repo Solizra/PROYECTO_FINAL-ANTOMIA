@@ -40,6 +40,21 @@ function Perfil() {
 
   const handleSave = async () => {
     try {
+      // Asegurar que exista sesión antes de intentar actualizar
+      const {
+        data: { session },
+        error: getSessionError
+      } = await supabase.auth.getSession();
+      if (getSessionError) throw getSessionError;
+      if (!session) {
+        alert('Necesitas iniciar sesión nuevamente para cambiar tu email.');
+        try {
+          localStorage.setItem('postLoginRedirect', '/perfil');
+        } catch {}
+        navigate('/');
+        return;
+      }
+
       // Verificar que el email sea diferente al actual
       if (formData.email === user?.email) {
         alert("ℹ️ El email es el mismo que ya tienes configurado.");
@@ -57,10 +72,15 @@ function Perfil() {
       // Esperar un poco antes de hacer la solicitud para evitar rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Actualizar en Supabase
-      const { data, error } = await supabase.auth.updateUser({
-        email: formData.email
-      });
+      // Actualizar en Supabase con URL de redirección para verificar el cambio
+      const { data, error } = await supabase.auth.updateUser(
+        {
+          email: formData.email
+        },
+        {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      );
 
       if (error) {
         // Manejar errores específicos de Supabase
@@ -90,15 +110,8 @@ function Perfil() {
         setEditMode(false);
         
         // Mostrar mensaje de éxito
-        alert("✅ Email actualizado correctamente en Supabase. Deberás verificar el nuevo email antes de poder usarlo para iniciar sesión.");
+        alert("✅ Email actualizado correctamente en Supabase. Deberás verificar el cambio en tu casilla de mail.");
         
-        // Opcional: Cerrar sesión para que el usuario use el nuevo email
-        setTimeout(() => {
-          if (window.confirm("¿Quieres cerrar sesión para probar el nuevo email?")) {
-            supabase.auth.signOut();
-            navigate("/");
-          }
-        }, 2000);
       } else if (currentUser && currentUser.email !== formData.email) {
         // El email no se actualizó inmediatamente, pero Supabase puede estar procesando
         console.log('⚠️ Email no actualizado inmediatamente, pero Supabase está procesando el cambio');
@@ -109,7 +122,7 @@ function Perfil() {
         setUser(updatedUser);
         setEditMode(false);
         
-        alert("✅ Solicitud de cambio de email enviada a Supabase. El cambio puede tardar unos segundos en procesarse. Deberás verificar el nuevo email antes de poder usarlo para iniciar sesión.");
+        alert("✅ Solicitud enviada a Supabase. Deberás verificar el cambio en tu casilla de mail.");
         
         // Opcional: Cerrar sesión para que el usuario use el nuevo email
         setTimeout(() => {
@@ -123,7 +136,15 @@ function Perfil() {
       }
     } catch (error) {
       console.error("Error al actualizar perfil:", error);
-      alert(`❌ Error al actualizar el perfil: ${error.message}`);
+      if (String(error.message).toLowerCase().includes('auth session missing')) {
+        alert('❌ Debes iniciar sesión para cambiar tu email. Te redirigimos al login.');
+        try {
+          localStorage.setItem('postLoginRedirect', '/perfil');
+        } catch {}
+        navigate('/');
+      } else {
+        alert(`❌ Error al actualizar el perfil: ${error.message}`);
+      }
     } finally {
       // Restaurar el botón
       const saveBtn = document.querySelector('.save-btn');

@@ -29,8 +29,14 @@ function LoginForm() {
       console.log('Login exitoso:', data);
 
       localStorage.setItem('user', JSON.stringify(data.user));
-    
-      navigate('/home');
+      // Redirigir a callback si venimos de un flujo pendiente
+      const redirect = localStorage.getItem('postLoginRedirect');
+      if (redirect) {
+        try { localStorage.removeItem('postLoginRedirect'); } catch {}
+        navigate(redirect, { replace: true });
+      } else {
+        navigate('/home');
+      }
     }
   };
 

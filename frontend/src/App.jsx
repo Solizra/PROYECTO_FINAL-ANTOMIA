@@ -7,6 +7,7 @@ import Perfil from "./pages/Perfil";
 import Archivados from "./pages/Archivados"; 
 import Fuentes from "./pages/Fuentes";
 import Newsletters from "./pages/Newsletters";
+import AuthCallback from "./pages/AuthCallback";
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/trends/:id" element={<InfoTrend />} />
         <Route path="/perfil" element={<Perfil />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/archivados" element={<Archivados />} />
         <Route path="/fuentes" element={<Fuentes />} />
         <Route path="/newsletters" element={<Newsletters />} />
