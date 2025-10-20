@@ -224,9 +224,29 @@ export default class TrendsRepository {
     const client = new Client(DBConfig);
     try {
       await client.connect();
+      
+      // Primero eliminar los registros de feedback asociados
+      try {
+        const deleteFeedbackSql = `DELETE FROM "Feedback" WHERE "trendId" = $1;`;
+        await client.query(deleteFeedbackSql, [id]);
+        console.log(`🗑️ Feedback asociado eliminado para trend ID: ${id}`);
+      } catch (feedbackErr) {
+        console.warn('⚠️ No se pudo eliminar feedback asociado:', feedbackErr?.message || feedbackErr);
+        // Continuar con la eliminación del trend aunque falle el feedback
+      }
+      
+      // Luego eliminar el trend
       const sql = `DELETE FROM "Trends" WHERE "id" = $1 RETURNING "id";`;
       const result = await client.query(sql, [id]);
-      return result.rowCount > 0; // true si se borró, false si no existía
+      const deleted = result.rowCount > 0;
+      
+      if (deleted) {
+        console.log(`✅ Trend eliminado exitosamente: ID ${id}`);
+      } else {
+        console.log(`ℹ️ Trend no encontrado para eliminar: ID ${id}`);
+      }
+      
+      return deleted;
     } catch (err) {
       console.error('Error eliminando Trend:', err);
       throw err;

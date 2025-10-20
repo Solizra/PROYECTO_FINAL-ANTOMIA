@@ -19,7 +19,15 @@ export default class TrendsService {
   }
 
   async deleteAsync(id) {
-    return await this.repo.deleteAsync(id);
+    try {
+      console.log(`🔧 TrendsService: Iniciando eliminación de trend ID: ${id}`);
+      const result = await this.repo.deleteAsync(id);
+      console.log(`🔧 TrendsService: Resultado de eliminación: ${result}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ TrendsService: Error eliminando trend ${id}:`, error?.message || error);
+      throw error;
+    }
   }
   
   async deleteOlderThanDays(days = 30) {

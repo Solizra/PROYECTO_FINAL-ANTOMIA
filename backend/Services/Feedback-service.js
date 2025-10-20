@@ -6,16 +6,36 @@ export default class FeedbackService {
   }
 
   async createAsync(payload) {
-    const clean = {
-      trendId: Number.isFinite(Number(payload?.trendId)) ? Number(payload.trendId) : null,
-      action: (payload?.action || '').toString().trim(),
-      reason: payload?.reason ? String(payload.reason) : null,
-      feedback: payload?.feedback ? String(payload.feedback) : null,
-      trendData: payload?.trendData ?? null,
-      timestamp: payload?.timestamp ? new Date(payload.timestamp) : null
-    };
-    if (!clean.action) throw new Error('action es requerido');
-    return await this.repo.createAsync(clean);
+    try {
+      console.log('🔧 FeedbackService: Procesando feedback:', {
+        trendId: payload?.trendId,
+        action: payload?.action,
+        reason: payload?.reason,
+        feedback: payload?.feedback
+      });
+
+      const clean = {
+        trendId: Number.isFinite(Number(payload?.trendId)) ? Number(payload.trendId) : null,
+        action: (payload?.action || '').toString().trim(),
+        reason: payload?.reason ? String(payload.reason) : null,
+        feedback: payload?.feedback ? String(payload.feedback) : null,
+        trendData: payload?.trendData ?? null,
+        timestamp: payload?.timestamp ? new Date(payload.timestamp) : null
+      };
+      
+      if (!clean.action) {
+        console.error('❌ FeedbackService: action es requerido');
+        throw new Error('action es requerido');
+      }
+      
+      console.log('🔧 FeedbackService: Datos limpios para guardar:', clean);
+      const result = await this.repo.createAsync(clean);
+      console.log('✅ FeedbackService: Feedback guardado exitosamente:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ FeedbackService: Error creando feedback:', error?.message || error);
+      throw error;
+    }
   }
 
   async hasNegativeForLinkOrPair({ trendLink, newsletterId = null }) {
@@ -74,12 +94,24 @@ export default class FeedbackService {
   async getNegativeReasonsStats({ limit = 300 } = {}) {
     const negatives = await this.getRecentNegatives({ limit });
     const reasonCounts = new Map();
+    const actionCounts = new Map();
+    
     for (const fb of negatives) {
       const r = String(fb?.reason || 'other').toLowerCase();
+      const a = String(fb?.action || 'unknown').toLowerCase();
       reasonCounts.set(r, (reasonCounts.get(r) || 0) + 1);
+      actionCounts.set(a, (actionCounts.get(a) || 0) + 1);
     }
-    const topReasons = [...reasonCounts.entries()].sort((a,b) => b[1] - a[1]).map(([reason, count]) => ({ reason, count }));
-    return { topReasons };
+    
+    const topReasons = [...reasonCounts.entries()]
+      .sort((a,b) => b[1] - a[1])
+      .map(([reason, count]) => ({ reason, count }));
+    
+    const topActions = [...actionCounts.entries()]
+      .sort((a,b) => b[1] - a[1])
+      .map(([action, count]) => ({ action, count }));
+    
+    return { topReasons, topActions };
   }
 
   // Devuelve textos representativos de pares noticia↔newsletter rechazados (para embeddings)
