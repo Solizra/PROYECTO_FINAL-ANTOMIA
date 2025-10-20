@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Home.css";
 import { supabase } from "../supabaseClient";
+import ojitoImage from "../assets/ojito.png";
 
 function Home() {
-  const ojo= "https://cdn-icons-png.freepik.com/512/3722/3722014.png";
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -603,7 +603,7 @@ function Home() {
                       className="info-btn-outline"
                       onClick={() => console.log('InfoTrend: Navegando a trend ID:', trend.id, 'Trend completo:', trend)}
                     >
-                      <img src="/ojito.png" alt="Ojo" />
+                      <img src={ojitoImage} alt="Ojo" />
                     </button>
                   </Link>
                 </td>
@@ -688,31 +688,21 @@ function Home() {
               marginTop: 8,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              gap: 12
             }}>
-              <div style={{
-                width: 'min(720px, 96%)',
-                padding: '10px 12px',
-                background: '#1f1f23',
-                border: '1px solid #3a3a3f',
-                borderRadius: 6,
-                color: '#ddd',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12
-              }}>
-                <span>La noticia no fue clasificada como Climatech.</span>
-                {nonClimateReason && (
-                  <button
-                    onClick={() => setShowNonClimatePanel(true)}
-                    className="primary-btn"
-                    style={{ padding: '6px 10px' }}
-                  >
-                    Ver motivo
-                  </button>
-                )}
-              </div>
+              <span style={{ color: '#ddd', fontSize: '14px' }}>
+                La noticia no fue clasificada como Climatech.
+              </span>
+              {nonClimateReason && (
+                <button
+                  onClick={() => setShowNonClimatePanel(true)}
+                  className="primary-btn"
+                  style={{ padding: '6px 10px' }}
+                >
+                  Ver motivo
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -739,13 +729,26 @@ function Home() {
       )}
 
       {showNonClimatePanel && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
-          <div style={{ width: 'min(720px, 96%)', background: '#2a2a2e', padding: 16, borderRadius: 8, border: '1px solid #3a3a3f', color: '#fff' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Motivo de no clasificación</h3>
-              <button className="danger-btn" onClick={() => setShowNonClimatePanel(false)} style={{ padding: '6px 10px' }}>Cerrar</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ width: 'min(800px, 92vw)', maxHeight: '80vh', overflow: 'auto', background: '#2a2a2e', color: '#fff', borderRadius: 12, boxShadow: '0 20px 50px rgba(0,0,0,0.6)', padding: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <strong>Motivo de no clasificación</strong>
+                <span style={{ color: '#aaa', fontSize: 12 }}>La noticia no fue clasificada como Climatech</span>
+              </div>
+              <button
+                className="delete-btn"
+                style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', padding: 0 }}
+                onClick={() => setShowNonClimatePanel(false)}
+                title="Cerrar"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M6 6l12 12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
             </div>
-            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
               {nonClimateReason || 'No se proporcionó un motivo específico.'}
             </div>
           </div>
