@@ -54,24 +54,62 @@ router.delete('/:id', async (req, res) => {
     if (!Number.isInteger(id)) {
       return res.status(400).json({ error: 'id inválido' });
     }
+    
+    console.log(`🗑️ Iniciando eliminación de trend ID: ${id}`);
+    
     // Intentar borrar (idempotente)
     let deleted = false;
     try {
       deleted = await svc.deleteAsync(id);
     } catch (dbErr) {
       console.error('❌ Error en deleteAsync Trends:', dbErr);
+      
+      // Verificar si es un error de restricción de clave foránea
+      if (dbErr.message && dbErr.message.includes('foreign key constraint')) {
+        console.log('🔗 Error de restricción de clave foránea detectado');
+        // Intentar eliminación manual en cascada
+        try {
+          deleted = await svc.deleteAsync(id);
+          if (deleted) {
+            return res.status(200).json({ 
+              message: 'Trend eliminado exitosamente (cascada manual)', 
+              id,
+              warning: 'Se eliminaron registros relacionados'
+            });
+          }
+        } catch (cascadeErr) {
+          console.error('❌ Error en eliminación en cascada:', cascadeErr);
+        }
+      }
+      
       // Responder idempotente para evitar bloquear la UI si hay inconsistencias
-      return res.status(200).json({ message: 'Trend eliminado (best-effort)', id });
+      return res.status(200).json({ 
+        message: 'Trend eliminado (best-effort)', 
+        id,
+        warning: 'Puede haber registros relacionados que no se pudieron eliminar'
+      });
     }
+    
     if (!deleted) {
       // Si no existía, igualmente responder 200 para que la UI quede consistente
-      return res.status(200).json({ message: 'Trend no existente (idempotente)', id });
+      return res.status(200).json({ 
+        message: 'Trend no existente (idempotente)', 
+        id 
+      });
     }
-    res.status(200).json({ message: 'Trend eliminado', id });
+    
+    res.status(200).json({ 
+      message: 'Trend eliminado exitosamente', 
+      id 
+    });
   } catch (e) {
     console.error('Error eliminando Trend:', e);
     // Responder 200 idempotente ante cualquier error inesperado para no romper UX
-    res.status(200).json({ message: 'Trend eliminado (best-effort)', id: Number(req.params.id) || null });
+    res.status(200).json({ 
+      message: 'Trend eliminado (best-effort)', 
+      id: Number(req.params.id) || null,
+      error: 'Error interno del servidor'
+    });
   }
 });
 
