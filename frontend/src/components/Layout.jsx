@@ -50,8 +50,8 @@ function Layout() {
 
         <div className={`settings-section ${sidebarExpanded ? 'visible' : 'hidden'}`}>
           <Link 
-            to="/perfil" 
-            className={`settings-btn ${location.pathname === "/perfil" ? "active" : ""}`}
+            to="/configuracion" 
+            className={`settings-btn ${location.pathname === "/configuracion" ? "active" : ""}`}
             title="Configuración"
           >
             <Settings size={18} />

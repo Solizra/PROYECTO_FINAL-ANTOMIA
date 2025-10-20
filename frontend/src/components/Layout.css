@@ -116,33 +116,37 @@
   }
   
   .sidebar nav ul li a {
-    text-decoration: none;
-    color: #cccccc;
-    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #2a2a2e;
+    color: #ffffff;
     padding: 10px 14px;
-    display: block;
     border-radius: 8px;
-    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-    position: relative;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
     border-left: 3px solid transparent;
   }
   
   .sidebar nav ul li.active a {
-    color: #2a2a2e;
-    background: #76f6ff;
+    background: #323238;
+    color: #76f6ff;
     border-left-color: #76f6ff;
   }
   
   .sidebar nav ul li a:hover {
-    background: #76f6ff;
-    color: #2a2a2e;
-    transform: translateX(4px);
+    background: #323238;
+    color: #76f6ff;
+    transform: translateY(-1px);
     border-left-color: #76f6ff;
   }
   
   /* ===== SECCIÓN DE CONFIGURACIÓN ===== */
   .settings-section {
-    margin-bottom: 10px;
+    margin-bottom: 2px;
     transition: all 0.3s ease;
   }
   

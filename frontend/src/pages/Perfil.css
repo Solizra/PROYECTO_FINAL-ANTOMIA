@@ -1,5 +1,74 @@
-.body{
-  background-color: #1a1a1d;
+/* Alertas */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-weight: 500;
+}
+
+.alert-error {
+  background: #2d1b1b;
+  color: #ff6b6b;
+  border: 1px solid #5c2a2a;
+}
+
+.alert-success {
+  background: #1b2d1b;
+  color: #51cf66;
+  border: 1px solid #2a5c2a;
+}
+
+/* Secciones de información */
+.info-section {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #444;
+}
+
+.info-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.info-section h3 {
+  color: #76f6ff;
+  margin-bottom: 16px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.status-active {
+  color: #51cf66 !important;
+  font-weight: 600;
+}
+
+.status-inactive {
+  color: #ff6b6b !important;
+  font-weight: 600;
+}
+
+/* Botones adicionales */
+.btn-danger {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
 }
 .perfil-container {
   padding: 2rem;
