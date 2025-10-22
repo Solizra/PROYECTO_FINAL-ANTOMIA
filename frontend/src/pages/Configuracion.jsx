@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useTheme } from '../contexts/ThemeContext';
 import './Configuracion.css';
 
 function Configuracion() {
+  const { isDarkMode, setTheme } = useTheme();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,6 +44,11 @@ function Configuracion() {
   useEffect(() => {
     loadUserData();
   }, []);
+
+  // Sincronizar el estado local de darkMode con el contexto global
+  useEffect(() => {
+    setPreferences(prev => ({ ...prev, darkMode: isDarkMode }));
+  }, [isDarkMode]);
 
   const loadUserData = async () => {
     try {
@@ -132,6 +139,11 @@ function Configuracion() {
     setSuccess('');
     
     try {
+      // Actualizar el tema global cuando cambie darkMode
+      if (preferences.darkMode !== isDarkMode) {
+        setTheme(preferences.darkMode);
+      }
+      
       // Guardar las preferencias en la base de datos usando Supabase
       const { error } = await supabase.auth.updateUser({
         data: {

@@ -8,8 +8,8 @@
   
   /* ===== SIDEBAR ===== */
   .sidebar {
-    background-color: #1a1a1d;
-    color: white;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
     padding: 16px;
     display: flex;
     flex-direction: column;
@@ -17,7 +17,7 @@
     transition: all 0.3s ease;
     position: relative;
     min-width: fit-content;
-    border-right: 1px solid rgba(255,255,255,0.06);
+    border-right: 1px solid var(--border-secondary);
   }
   
   .sidebar.expanded {
@@ -52,7 +52,7 @@
     margin-bottom: 0;
     transition: all 0.3s ease;
     font-size: 18px;
-    color: #76f6ff;
+    color: var(--accent-primary);
     white-space: nowrap;
     margin-right: 10px;
   }
@@ -65,9 +65,9 @@
   }
   
   .toggle-sidebar-btn {
-    background: #2a2a2e;
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #76f6ff;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    color: var(--accent-primary);
     cursor: pointer;
     padding: 6px;
     margin-top: 8px;
@@ -82,8 +82,8 @@
   }
   
   .toggle-sidebar-btn:hover {
-    background: #323238;
-    color: #76f6ff;
+    background: var(--bg-hover);
+    color: var(--accent-primary);
     transform: translateY(-1px);
   }
   
@@ -116,9 +116,9 @@
   }
   
   .sidebar nav ul li a {
-    border: 1px solid rgba(255,255,255,0.08);
-    background: #2a2a2e;
-    color: #ffffff;
+    border: 1px solid var(--border-secondary);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     padding: 10px 14px;
     border-radius: 8px;
     cursor: pointer;
@@ -132,16 +132,16 @@
   }
   
   .sidebar nav ul li.active a {
-    background: #323238;
-    color: #76f6ff;
-    border-left-color: #76f6ff;
+    background: var(--bg-active);
+    color: var(--text-inverse);
+    border-left-color: var(--accent-primary);
   }
   
   .sidebar nav ul li a:hover {
-    background: #323238;
-    color: #76f6ff;
+    background: var(--bg-hover);
+    color: var(--text-primary);
     transform: translateY(-1px);
-    border-left-color: #76f6ff;
+    border-left-color: var(--accent-primary);
   }
   
   /* ===== SECCIÓN DE CONFIGURACIÓN ===== */
@@ -163,9 +163,9 @@
   }
   
   .settings-btn {
-    border: 1px solid rgba(255,255,255,0.08);
-    background: #2a2a2e;
-    color: #ffffff;
+    border: 1px solid var(--border-secondary);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     padding: 10px 14px;
     border-radius: 8px;
     cursor: pointer;
@@ -179,16 +179,16 @@
   }
   
   .settings-btn:hover {
-    background: #323238;
-    color: #76f6ff;
+    background: var(--bg-hover);
+    color: var(--accent-primary);
     transform: translateY(-1px);
-    border-left-color: #76f6ff;
+    border-left-color: var(--accent-primary);
   }
   
   .settings-btn.active {
-    background: #323238;
-    color: #76f6ff;
-    border-left-color: #76f6ff;
+    background: var(--bg-active);
+    color: var(--text-inverse);
+    border-left-color: var(--accent-primary);
   }
   
   .settings-btn span {
@@ -197,9 +197,9 @@
 
   /* ===== BOTÓN DE LOGOUT ===== */
   .logout-btn {
-    border: 1px solid rgba(255,255,255,0.08);
-    background: #2a2a2e;
-    color: #ffffff;
+    border: 1px solid var(--border-secondary);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     padding: 10px 14px;
     border-radius: 8px;
     cursor: pointer;
@@ -223,15 +223,15 @@
   }
   
   .logout-btn:hover {
-    background: #323238;
-    color: #76f6ff;
+    background: var(--bg-hover);
+    color: var(--accent-primary);
     transform: translateY(-1px);
   }
   
   /* ===== CONTENIDO PRINCIPAL ===== */
   .content {
     flex: 1;
-    background-color: #000000;
+    background-color: var(--bg-primary);
     overflow-y: auto;
     transition: all 0.3s ease;
     scrollbar-width: none; /* Firefox */

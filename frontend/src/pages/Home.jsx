@@ -661,7 +661,7 @@ function Home() {
               onKeyDown={(e) => { if (e.key === 'Enter') analizar(); }}
               disabled={loading}
             />
-            <button onClick={analizar} disabled={loading} style={{ minWidth: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <button onClick={analizar} disabled={loading} className="primary-btn" style={{ minWidth: 120 }}>
               {loading ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   <svg width="16" height="16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" className="spinner">
@@ -721,8 +721,8 @@ function Home() {
               </select>
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} style={{ padding: '8px 12px', background: '#3a3a3f', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmDeleteWithReason} style={{ padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Eliminar</button>
+              <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-secondary">Cancelar</button>
+              <button onClick={confirmDeleteWithReason} className="btn-danger">Eliminar</button>
             </div>
           </div>
         </div>

@@ -33,6 +33,41 @@
   --info: #339af0;
 }
 
+/* Asegurar que el modo oscuro se aplique por defecto */
+html:not([data-theme="light"]) {
+  /* Modo Oscuro (por defecto) */
+  --bg-primary: #1a1a1d;
+  --bg-secondary: #2a2a2e;
+  --bg-tertiary: #1f1f23;
+  --bg-card: #2a2a2e;
+  --bg-input: #1a1a1d;
+  --bg-hover: #323238;
+  --bg-active: #76f6ff;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-tertiary: #aaa;
+  --text-muted: #666;
+  --text-inverse: #000000;
+  
+  --accent-primary: #76f6ff;
+  --accent-secondary: #5ec5cc;
+  --accent-hover: #4a9da3;
+  
+  --border-primary: #444;
+  --border-secondary: rgba(255,255,255,0.08);
+  --border-accent: #76f6ff;
+  
+  --shadow-primary: rgba(0, 0, 0, 0.3);
+  --shadow-secondary: rgba(0, 0, 0, 0.6);
+  --shadow-accent: rgba(118, 246, 255, 0.3);
+  
+  --success: #51cf66;
+  --error: #ff6b6b;
+  --warning: #ffd43b;
+  --info: #339af0;
+}
+
 [data-theme="light"] {
   /* Modo Claro */
   --bg-primary: #ffffff;
@@ -72,11 +107,17 @@
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
+html {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   margin: 0;
   font-family: 'Segoe UI', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ===== LAYOUT ===== */
@@ -172,38 +213,89 @@ input.disabled {
   color: var(--text-muted);
 }
 
-/* ===== BOTONES DE ACCIÓN ===== */
-.btn-primary {
-  background: var(--accent-primary);
-  color: var(--text-inverse);
-  border: none;
+/* ===== BOTONES ESTÁNDAR ===== */
+.btn-standard {
+  background: #25727a;
+  border: 1px solid #3a8d95;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  font-weight: 500;
 }
 
-.btn-primary:hover {
-  background: var(--accent-secondary);
-  box-shadow: 0 4px 8px var(--shadow-accent);
+.btn-standard:hover {
+  background: #1e5a61;
+  border-color: #2d7a82;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.btn-secondary {
+.btn-standard:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.btn-standard:disabled {
+  background: #555;
+  border-color: #666;
+  color: #999;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Tamaños de botones */
+.btn-standard.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.btn-standard.btn-lg {
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+/* Variantes de botones */
+.btn-standard.btn-primary {
+  background: #25727a;
+  border-color: #3a8d95;
+}
+
+.btn-standard.btn-primary:hover {
+  background: #1e5a61;
+  border-color: #2d7a82;
+}
+
+.btn-standard.btn-secondary {
   background: transparent;
-  color: var(--accent-primary);
-  border: 2px solid var(--accent-primary);
+  border-color: #3a8d95;
+  color: #3a8d95;
 }
 
-.btn-secondary:hover {
-  background: var(--accent-primary);
-  color: var(--text-inverse);
+.btn-standard.btn-secondary:hover {
+  background: #3a8d95;
+  color: #fff;
 }
 
-.btn-danger {
-  background: var(--error);
-  color: var(--text-inverse);
-  border: none;
+.btn-standard.btn-danger {
+
 }
 
-.btn-danger:hover {
-  background: #c82333;
-  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+.btn-standard.btn-danger:hover {
+ 
+}
+
+.btn-standard.btn-success {
+  background: #28a745;
+  border-color: #1e7e34;
+}
+
+.btn-standard.btn-success:hover {
+  background: #1e7e34;
+  border-color: #1c7430;
 }
 
 /* ===== CARDS Y CONTENEDORES ===== */

@@ -250,12 +250,12 @@
 }
 
 .eliminar-btn {
-  background: #dc3545;
+  
   color: white;
 }
 
 .eliminar-btn:hover {
-  background: #c82333;
+ 
   transform: translateY(-1px);
 }
 
@@ -291,12 +291,10 @@
 }
 
 .bulk-eliminar-btn {
-  background: #dc3545;
   color: white;
 }
 
 .bulk-eliminar-btn:hover {
-  background: #c82333;
   transform: translateY(-1px);
 }
 

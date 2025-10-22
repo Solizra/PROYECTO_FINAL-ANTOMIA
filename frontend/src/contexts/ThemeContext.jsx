@@ -18,13 +18,16 @@ export const ThemeProvider = ({ children }) => {
     const savedTheme = localStorage.getItem('theme');
     const userPreferences = JSON.parse(localStorage.getItem('userPreferences') || '{}');
     
-    if (savedTheme) {
+    // Si no hay tema guardado, establecer modo oscuro por defecto
+    if (!savedTheme && userPreferences.darkMode === undefined) {
+      setIsDarkMode(true);
+      localStorage.setItem('theme', 'dark');
+      const defaultPreferences = { darkMode: true };
+      localStorage.setItem('userPreferences', JSON.stringify(defaultPreferences));
+    } else if (savedTheme) {
       setIsDarkMode(savedTheme === 'dark');
     } else if (userPreferences.darkMode !== undefined) {
       setIsDarkMode(userPreferences.darkMode);
-    } else {
-      // Detectar preferencia del sistema
-      setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
     }
   }, []);
 
