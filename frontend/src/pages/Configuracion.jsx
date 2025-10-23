@@ -13,6 +13,7 @@ function Configuracion() {
   // Estados para formularios
   const [editProfile, setEditProfile] = useState(false);
   const [editPassword, setEditPassword] = useState(false);
+  const [editEmail, setEditEmail] = useState(false);
   const [editPreferences, setEditPreferences] = useState(false);
   
   // Estados para datos del usuario
@@ -28,6 +29,11 @@ function Configuracion() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
+  });
+  
+  // Estados para cambio de email
+  const [emailData, setEmailData] = useState({
+    newEmail: ''
   });
   
   // Estados para preferencias
@@ -61,6 +67,11 @@ function Configuracion() {
         email: user?.email || '',
         company: user?.user_metadata?.company || '',
         role: user?.user_metadata?.role || ''
+      });
+      
+      // Inicializar emailData con el email actual
+      setEmailData({
+        newEmail: user?.email || ''
       });
       
       // Cargar preferencias desde la base de datos o localStorage
@@ -99,6 +110,31 @@ function Configuracion() {
       setTimeout(() => setSuccess(''), 4000);
     } catch (error) {
       setError('Error actualizando perfil: ' + error.message);
+    }
+  };
+
+  const handleEmailUpdate = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    if (emailData.newEmail === user?.email) {
+      setError('El nuevo email debe ser diferente al actual');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.auth.updateUser({
+        email: emailData.newEmail
+      });
+      
+      if (error) throw error;
+      
+      setSuccess('Email actualizado. Revisa tu correo para confirmar el cambio.');
+      setEditEmail(false);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (error) {
+      setError('Error actualizando email: ' + error.message);
     }
   };
 
@@ -234,10 +270,6 @@ function Configuracion() {
                     <span>{profileData.fullName || 'No especificado'}</span>
                   </div>
                   <div className="info-item">
-                    <label>Email</label>
-                    <span>{profileData.email}</span>
-                  </div>
-                  <div className="info-item">
                     <label>Empresa</label>
                     <span>{profileData.company || 'No especificada'}</span>
                   </div>
@@ -306,38 +338,68 @@ function Configuracion() {
                 </svg>
                 <h3>Seguridad</h3>
               </div>
-              <button 
-                className="btn-secondary"
-                onClick={() => setEditPassword(!editPassword)}
-              >
-                {editPassword ? 'Cancelar' : 'Cambiar contraseña'}
-              </button>
+              <div className="section-actions">
+                <button 
+                  className="btn-secondary"
+                  onClick={() => setEditEmail(!editEmail)}
+                >
+                  {editEmail ? 'Cancelar' : 'Cambiar email'}
+                </button>
+                <button 
+                  className="btn-secondary"
+                  onClick={() => setEditPassword(!editPassword)}
+                >
+                  {editPassword ? 'Cancelar' : 'Cambiar contraseña'}
+                </button>
+              </div>
             </div>
             
             <div className="section-content">
-              {!editPassword ? (
+              {!editEmail && !editPassword ? (
                 <div className="security-info">
                   <div className="info-item">
-                    <label>Último cambio de contraseña</label>
-                    <span>Hace 30 días</span>
+                    <label>Email actual</label>
+                    <span>{user?.email}</span>
                   </div>
                   <div className="info-item">
                     <label>Estado de la cuenta</label>
                     <span className="status-active">Activa</span>
                   </div>
+                  <div className="info-item">
+                    <label>Verificación de email</label>
+                    <span className={user?.email_confirmed_at ? 'status-active' : 'status-inactive'}>
+                      {user?.email_confirmed_at ? 'Verificado' : 'No verificado'}
+                    </span>
+                  </div>
                 </div>
-              ) : (
-                <form onSubmit={handlePasswordChange} className="form">
+              ) : editEmail ? (
+                <form onSubmit={handleEmailUpdate} className="form">
                   <div className="form-group">
-                    <label htmlFor="currentPassword">Contraseña actual</label>
+                    <label htmlFor="currentEmail">Email actual</label>
                     <input
-                      type="password"
-                      id="currentPassword"
-                      value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                      placeholder="Tu contraseña actual"
+                      type="email"
+                      id="currentEmail"
+                      value={user?.email}
+                      disabled
+                      className="disabled"
                     />
                   </div>
+                  <div className="form-group">
+                    <label htmlFor="newEmail">Nuevo email</label>
+                    <input
+                      type="email"
+                      id="newEmail"
+                      value={emailData.newEmail}
+                      onChange={(e) => setEmailData({...emailData, newEmail: e.target.value})}
+                      placeholder="tu@nuevo-email.com"
+                    />
+                  </div>
+                  <div className="form-actions">
+                    <button type="submit" className="btn-primary">Actualizar email</button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handlePasswordChange} className="form">
                   <div className="form-group">
                     <label htmlFor="newPassword">Nueva contraseña</label>
                     <input
@@ -345,7 +407,7 @@ function Configuracion() {
                       id="newPassword"
                       value={passwordData.newPassword}
                       onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
-                      placeholder="Nueva contraseña"
+                      placeholder="Nueva contraseña (mínimo 6 caracteres)"
                     />
                   </div>
                   <div className="form-group">

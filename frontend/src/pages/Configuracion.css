@@ -67,6 +67,11 @@
   color: var(--accent-primary);
 }
 
+.section-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .section-title h3 {
   margin: 0;
   font-size: 1.3rem;
